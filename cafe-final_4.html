@@ -1,0 +1,1252 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cafe照 シフト管理</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&family=DM+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg: #faf7f2;
+  --surface: #ffffff;
+  --surface2: #f5f0e8;
+  --surface3: #ede6d8;
+  --accent: #b8622a;
+  --accent-lt: #e8a060;
+  --green: #3a8a5a;
+  --green-lt: #6ab88a;
+  --red: #c03030;
+  --yellow: #c08020;
+  --blue: #2860a8;
+  --text: #1e1810;
+  --text-muted: #8a7a60;
+  --border: #ddd0b8;
+
+  --role-C: #b8622a;
+  --role-B: #8040a0;
+  --role-H: #1878a0;
+  --role-D: #b04040;
+  --role-K: #2a8050;
+  --role-P: #906020;
+  --role-W: #406090;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Noto Sans JP', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+/* HEADER */
+.header {
+  background: var(--text);
+  color: var(--bg);
+  padding: 12px 18px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 100;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+}
+.logo-main { font-size: 1.25rem; font-weight: 900; color: #e8a060; letter-spacing: 0.06em; }
+.logo-sub { font-size: 0.65rem; color: #8a7a60; letter-spacing: 0.18em; margin-left: 8px; }
+.sync-btn {
+  background: var(--green);
+  border: none; color: #fff;
+  padding: 6px 14px; border-radius: 6px;
+  font-size: 0.75rem; font-family: inherit;
+  cursor: pointer; transition: opacity .2s;
+  display: flex; align-items: center; gap: 5px;
+}
+.sync-btn:hover { opacity: 0.85; }
+.sync-status { font-size: 0.65rem; color: #8a7a60; margin-top: 2px; text-align: right; }
+
+/* TABS */
+.tabs { display: flex; background: var(--surface); border-bottom: 2px solid var(--border); overflow-x: auto; }
+.tab { padding: 10px 14px; border: none; background: transparent; color: var(--text-muted); font-family: inherit; font-size: 0.78rem; cursor: pointer; white-space: nowrap; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all .2s; }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 700; }
+
+.page { display: none; padding: 14px; }
+.page.active { display: block; }
+
+/* MONTH NAV */
+.month-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.month-title { font-size: 1.1rem; font-weight: 700; color: var(--accent); font-family: 'DM Mono', monospace; }
+.nav-btn { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 5px 12px; border-radius: 6px; cursor: pointer; transition: background .15s; }
+.nav-btn:hover { background: var(--surface2); }
+
+/* INFO CARDS */
+.info-row { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.info-card { flex: 1; min-width: 80px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+.ic-label { font-size: 0.62rem; color: var(--text-muted); }
+.ic-val { font-size: 1.3rem; font-family: 'DM Mono', monospace; font-weight: 700; }
+
+/* LEGEND */
+.legend { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.legend-item { display: flex; align-items: center; gap: 4px; font-size: 0.65rem; color: var(--text-muted); }
+.legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+/* CALENDAR */
+.cal-wrap { overflow-x: auto; }
+.calendar { width: 100%; min-width: 340px; border-collapse: separate; border-spacing: 2px; }
+.calendar th { font-size: 0.68rem; color: var(--text-muted); padding: 4px 2px; text-align: center; font-weight: 500; }
+.calendar th.sun { color: var(--red); }
+.calendar th.sat { color: var(--blue); }
+
+.cal-day {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 5px 4px;
+  vertical-align: top;
+  min-height: 88px;
+  cursor: pointer;
+  transition: box-shadow .15s;
+  position: relative;
+}
+.cal-day:hover { box-shadow: 0 2px 10px rgba(0,0,0,0.12); }
+.cal-day.empty { background: transparent; border-color: transparent; cursor: default; }
+.cal-day.open { border-color: rgba(58,138,90,0.4); background: #f8fff8; }
+.cal-day.missing { border-color: rgba(192,48,48,0.5); background: #fff8f8; }
+.cal-day.warning { border-color: rgba(192,128,32,0.4); background: #fffdf5; }
+.cal-day.today .dn { background: var(--accent); color: #fff; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; }
+.cal-day.sun .dn { color: var(--red); }
+.cal-day.sat .dn { color: var(--blue); }
+
+.day-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; }
+.dn { font-size: 0.8rem; font-family: 'DM Mono', monospace; font-weight: 500; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; }
+.open-toggle { font-size: 0.55rem; padding: 1px 5px; border-radius: 3px; border: 1px solid var(--border); background: transparent; color: var(--text-muted); cursor: pointer; transition: all .15s; white-space: nowrap; }
+.cal-day.open .open-toggle { background: var(--green); border-color: var(--green); color: #fff; }
+
+.staff-chips { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 2px; }
+.chip { font-size: 0.58rem; padding: 1px 5px; border-radius: 8px; background: var(--surface2); color: var(--text-muted); white-space: nowrap; line-height: 1.5; }
+.chip.on { background: rgba(58,138,90,0.12); color: var(--green); }
+
+.role-row { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 3px; }
+.rb { font-size: 0.58rem; font-family: 'DM Mono', monospace; font-weight: 700; padding: 1px 4px; border-radius: 3px; }
+.rb-ok { background: rgba(58,138,90,0.15); color: var(--green); }
+.rb-ng { background: rgba(192,48,48,0.15); color: var(--red); }
+.rb-warn { background: rgba(192,128,32,0.15); color: var(--yellow); }
+
+.alert-chip { font-size: 0.58rem; color: var(--red); margin-top: 2px; display: block; }
+.warn-chip { font-size: 0.58rem; color: var(--yellow); margin-top: 1px; display: block; }
+
+/* MODAL */
+.overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 200; align-items: flex-end; justify-content: center; }
+.overlay.open { display: flex; }
+.modal { background: var(--surface); border-radius: 16px 16px 0 0; width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto; padding: 18px; }
+.modal-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.modal-title { font-size: 1rem; font-weight: 700; color: var(--accent); }
+.xbtn { background: var(--surface2); border: none; color: var(--text-muted); width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 1rem; }
+
+/* OPEN TOGGLE IN MODAL */
+.open-row { display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--surface2); border-radius: 8px; margin-bottom: 14px; }
+.big-toggle { padding: 6px 16px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface3); color: var(--text-muted); font-family: inherit; font-size: 0.82rem; cursor: pointer; transition: all .2s; }
+.big-toggle.on { background: var(--green); border-color: var(--green); color: #fff; font-weight: 700; }
+
+/* STAFF ASSIGN ROWS */
+.assign-label { font-size: 0.72rem; color: var(--text-muted); margin-bottom: 6px; font-weight: 500; }
+.assign-rows { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+.assign-row {
+  background: var(--surface2); border-radius: 8px; padding: 8px 10px;
+  display: grid; grid-template-columns: 8px 1fr auto; gap: 8px; align-items: start;
+}
+.assign-row.unavail { opacity: 0.45; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--surface3); flex-shrink: 0; margin-top: 5px; }
+.dot.on { background: var(--green); }
+.aname { font-size: 0.82rem; font-weight: 500; }
+.atime { font-size: 0.65rem; color: var(--text-muted); font-family: 'DM Mono', monospace; }
+.aroles { font-size: 0.62rem; color: var(--text-muted); margin-top: 1px; }
+
+/* TIME OVERRIDE */
+.time-override { display: flex; align-items: center; gap: 5px; margin-top: 4px; flex-wrap: wrap; }
+.to-label { font-size: 0.62rem; color: var(--text-muted); }
+.to-input { font-size: 0.72rem; font-family: 'DM Mono', monospace; border: 1px solid var(--border); border-radius: 4px; padding: 2px 5px; background: var(--surface); color: var(--text); width: 70px; }
+
+/* ROLE SELECT */
+.role-sel { font-size: 0.72rem; font-family: inherit; background: var(--surface); border: 1px solid var(--border); border-radius: 5px; padding: 4px 5px; color: var(--text); cursor: pointer; }
+
+/* TIME GANTT */
+.gantt-section { margin-bottom: 14px; }
+.gantt-title { font-size: 0.72rem; color: var(--text-muted); margin-bottom: 6px; font-weight: 500; }
+.gantt-wrap { background: var(--surface2); border-radius: 8px; padding: 8px; overflow-x: auto; }
+.gantt-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-size: 0.65rem; }
+.gantt-name { width: 60px; flex-shrink: 0; color: var(--text-muted); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gantt-track { flex: 1; height: 16px; background: var(--surface3); border-radius: 4px; position: relative; min-width: 180px; }
+.gantt-bar { position: absolute; height: 100%; border-radius: 4px; background: var(--green); opacity: 0.7; }
+.gantt-axis { display: flex; padding-left: 66px; margin-bottom: 2px; }
+.gantt-tick { flex: 1; font-size: 0.55rem; color: var(--text-muted); font-family: 'DM Mono', monospace; text-align: left; }
+.req-line { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(192,48,48,0.5); }
+
+/* ALERTS IN MODAL */
+.modal-alert { background: rgba(192,48,48,0.08); border: 1px solid rgba(192,48,48,0.25); border-radius: 6px; padding: 7px 10px; font-size: 0.72rem; color: var(--red); margin-top: 8px; }
+.modal-warn { background: rgba(192,128,32,0.08); border: 1px solid rgba(192,128,32,0.25); border-radius: 6px; padding: 7px 10px; font-size: 0.72rem; color: var(--yellow); margin-top: 6px; }
+
+/* NOTICE */
+.notice-box { background: #e8f8e8; border: 1px solid #a0d8a0; border-radius: 8px; padding: 12px; font-size: 0.75rem; white-space: pre-wrap; font-family: 'DM Mono', monospace; line-height: 1.7; color: #1a4020; margin-top: 8px; }
+.copy-btn { background: #25d366; border: none; color: #fff; border-radius: 7px; padding: 9px; width: 100%; font-family: inherit; font-size: 0.82rem; cursor: pointer; margin-top: 7px; transition: opacity .2s; }
+.copy-btn:hover { opacity: 0.85; }
+
+/* STAFF PAGE */
+.staff-cards { display: flex; flex-direction: column; gap: 10px; }
+.scard { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+.sc-hdr { display: flex; gap: 8px; margin-bottom: 8px; }
+.sc-name { flex: 1; font-size: 0.88rem; font-weight: 500; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface2); font-family: inherit; color: var(--text); }
+.del-btn { background: transparent; border: 1px solid rgba(192,48,48,0.35); color: var(--red); border-radius: 5px; padding: 4px 10px; cursor: pointer; font-size: 0.72rem; }
+.sc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+.flabel { font-size: 0.65rem; color: var(--text-muted); margin-bottom: 3px; display: block; }
+.finput, .fsel { width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface2); color: var(--text); font-family: inherit; font-size: 0.78rem; }
+.role-wrap { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+.rtoggle { padding: 3px 9px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface2); color: var(--text-muted); font-size: 0.7rem; cursor: pointer; font-family: 'DM Mono', monospace; transition: all .15s; }
+
+/* SETTINGS */
+.settings-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+.settings-title { font-size: 0.82rem; font-weight: 700; color: var(--accent); margin-bottom: 10px; }
+.url-input { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface2); color: var(--text); font-family: 'DM Mono', monospace; font-size: 0.72rem; margin-bottom: 8px; }
+.save-btn { background: var(--accent); border: none; color: #fff; border-radius: 7px; padding: 9px 18px; font-family: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; transition: opacity .2s; }
+.save-btn:hover { opacity: 0.85; }
+.add-btn { background: var(--surface2); border: 1px dashed var(--border); color: var(--text-muted); border-radius: 8px; padding: 10px; width: 100%; font-family: inherit; font-size: 0.82rem; cursor: pointer; margin-top: 4px; transition: all .15s; }
+.add-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* LINE PASTE */
+.paste-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+.paste-title { font-size: 0.82rem; font-weight: 700; color: var(--accent); margin-bottom: 10px; }
+.paste-sel { width: 100%; padding: 7px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface2); color: var(--text); font-family: inherit; font-size: 0.8rem; margin-bottom: 8px; }
+.paste-ta { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface2); color: var(--text); font-family: 'DM Mono', monospace; font-size: 0.75rem; min-height: 110px; resize: vertical; margin-bottom: 8px; }
+.parse-btn { background: var(--accent); border: none; color: #fff; border-radius: 8px; padding: 10px; width: 100%; font-family: inherit; font-size: 0.83rem; font-weight: 700; cursor: pointer; transition: opacity .2s; }
+.parse-btn:hover { opacity: 0.85; }
+.parse-result { margin-top: 8px; background: var(--surface2); border-radius: 8px; padding: 10px; font-size: 0.78rem; line-height: 1.8; }
+.tok { color: var(--green); } .twarn { color: var(--red); }
+
+/* WEEKLY ROLE TABLE */
+.wrole-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 480px;
+  margin-bottom: 16px;
+  font-size: 0.75rem;
+}
+.wrole-table th {
+  background: var(--text);
+  color: var(--bg);
+  padding: 7px 6px;
+  text-align: center;
+  font-weight: 600;
+  white-space: nowrap;
+  font-size: 0.7rem;
+}
+.wrole-table th.col-role { background: var(--surface3); color: var(--text); min-width: 100px; text-align: left; padding-left: 10px; }
+.wrole-table td { border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); padding: 6px 5px; text-align: center; vertical-align: middle; }
+.wrole-table td.role-label { background: var(--surface2); font-size: 0.72rem; font-weight: 600; text-align: left; padding-left: 10px; white-space: nowrap; border-left: 3px solid transparent; }
+.wrole-table tr:last-child td { border-bottom: none; }
+.wrole-table .name-chip { font-size: 0.68rem; padding: 2px 6px; border-radius: 8px; display: inline-block; white-space: nowrap; }
+.wrole-table .closed-cell { background: var(--surface2); color: var(--text-muted); font-size: 0.65rem; }
+.wrole-table th.day-sun, .wrole-table td.day-sun { background: rgba(192,48,48,0.06); }
+.wrole-table th.day-sat, .wrole-table td.day-sat { background: rgba(40,96,168,0.06); }
+.wrole-table th.day-hol { color: var(--red); }
+.wstaff-section { margin-top: 4px; }
+.wstaff-title { font-size: 0.78rem; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
+.wstaff-table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 480px; font-size: 0.72rem; }
+.wstaff-table th { background: var(--surface3); color: var(--text-muted); padding: 5px 6px; text-align: center; font-size: 0.68rem; font-weight: 500; }
+.wstaff-table th.name-col { text-align: left; padding-left: 10px; min-width: 90px; }
+.wstaff-table td { border-bottom: 1px solid var(--border); padding: 5px 5px; text-align: center; font-size: 0.68rem; }
+.wstaff-table td.name-col { text-align: left; padding-left: 10px; font-weight: 500; }
+.role-dot { display: inline-block; width: 22px; height: 22px; border-radius: 50%; font-size: 0.62rem; font-weight: 700; line-height: 22px; text-align: center; color: #fff; }
+.off-mark { color: var(--border); font-size: 0.7rem; }
+.avail-mark { color: var(--text-muted); font-size: 0.65rem; }
+
+@media print {
+  .header-actions, .tabs, .nav-btn, .open-toggle, .overlay { display: none !important; }
+  .page { display: block !important; }
+  body { background: white; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <span class="logo-main">Cafe照</span>
+    <span class="logo-sub">SHIFT</span>
+  </div>
+  <div style="text-align:right">
+    <button class="sync-btn" onclick="syncAll()">☁ 保存・共有</button>
+    <div class="sync-status" id="syncStatus">未保存</div>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="showPage('calendar',this)">📅 月間</button>
+  <button class="tab" onclick="showPage('weekly',this)">📋 役割一覧</button>
+  <button class="tab" onclick="showPage('line',this)">💬 LINE取込</button>
+  <button class="tab" onclick="showPage('staff',this)">👤 スタッフ</button>
+  <button class="tab" onclick="showPage('settings',this)">⚙ 設定</button>
+</div>
+
+<!-- CALENDAR -->
+<div class="page active" id="page-calendar">
+  <div class="month-nav">
+    <button class="nav-btn" onclick="changeMonth(-1)">◀</button>
+    <div class="month-title" id="monthTitle"></div>
+    <button class="nav-btn" onclick="changeMonth(1)">▶</button>
+  </div>
+  <div class="info-row" id="infoRow"></div>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>営業・問題なし</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div>必須役不足</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--yellow)"></div>人数・時間帯注意</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--border)"></div>休業</div>
+  </div>
+  <div class="cal-wrap"><table class="calendar" id="calTable"></table></div>
+</div>
+
+<!-- WEEKLY ROLE VIEW -->
+<div class="page" id="page-weekly">
+  <div class="month-nav">
+    <button class="nav-btn" onclick="changeWeekOffset(-1)">◀ 前週</button>
+    <div class="month-title" id="weekTitle" style="font-size:0.9rem"></div>
+    <button class="nav-btn" onclick="changeWeekOffset(1)">次週 ▶</button>
+  </div>
+  <div style="overflow-x:auto">
+    <div id="weeklyRoleTable"></div>
+  </div>
+  <div style="margin-top:12px;overflow-x:auto">
+    <div id="weeklyStaffTable"></div>
+  </div>
+</div>
+
+<!-- LINE -->
+<div class="page" id="page-line">
+  <div class="paste-card">
+    <div class="paste-title">💬 LINEメッセージを貼り付け → 出勤可能日を自動登録</div>
+    <label class="flabel">スタッフを選択</label>
+    <select class="paste-sel" id="pasteStaff"></select>
+    <label class="flabel">LINEのテキストをそのまま貼り付け</label>
+    <textarea class="paste-ta" id="pasteTxt" placeholder="例：来月は1日・3日・7〜10日が出られます。5日と20日は用事があって無理です。よろしくお願いします！"></textarea>
+    <button class="parse-btn" onclick="parseLine()">🤖 AIで解析してカレンダーに反映</button>
+    <div id="parseResult"></div>
+  </div>
+  <div class="paste-card">
+    <div class="paste-title">📤 前日通知メッセージを生成</div>
+    <label class="flabel">通知する日付</label>
+    <input type="date" class="paste-sel" id="noticeDate" style="margin-bottom:8px">
+    <button class="parse-btn" style="background:var(--green)" onclick="generateNotice()">前日通知を生成</button>
+    <div id="noticeResult"></div>
+  </div>
+</div>
+
+<!-- STAFF -->
+<div class="page" id="page-staff">
+  <div class="staff-cards" id="staffCards"></div>
+  <button class="add-btn" onclick="addStaff()">＋ スタッフを追加</button>
+</div>
+
+<!-- SETTINGS -->
+<div class="page" id="page-settings">
+  <div class="settings-card">
+    <div class="settings-title">☁ Google スプレッドシート連携</div>
+    <div style="background:rgba(58,138,90,0.1);border:1px solid rgba(58,138,90,0.3);border-radius:8px;padding:12px;font-size:0.8rem;line-height:1.9">
+      <span style="color:var(--green);font-weight:700;font-size:1rem">✓ 接続済み</span><br>
+      Google Apps Script に正常に接続されています。<br>
+      右上の「☁ 保存・共有」ボタンを押すとGoogleスプレッドシートにデータが保存され、同じHTMLファイルを開いている全員のデータが同期されます。
+    </div>
+    <div id="gasStatus" style="font-size:0.7rem;color:var(--text-muted);margin-top:8px"></div>
+    <button class="save-btn" style="margin-top:8px" onclick="testGas()">接続テスト</button>
+    <div id="gasTestResult" style="font-size:0.72rem;margin-top:6px"></div>
+  </div>
+  <div class="settings-card">
+    <div class="settings-title">🏪 営業時間設定</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div><label class="flabel">開店時刻</label><input type="time" class="finput" id="shopOpen" value="10:00"></div>
+      <div><label class="flabel">閉店時刻</label><input type="time" class="finput" id="shopClose" value="16:00"></div>
+    </div>
+  </div>
+  <button class="save-btn" style="width:100%;margin-top:4px" onclick="window.print()">🖨 印刷 / PDF出力</button>
+</div>
+
+<!-- MODAL -->
+<div class="overlay" id="overlay" onclick="closeMaybe(event)">
+  <div class="modal" id="modal">
+    <div class="modal-hdr">
+      <div class="modal-title" id="modalTitle"></div>
+      <button class="xbtn" onclick="closeModal()">✕</button>
+    </div>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// CONSTANTS & ROLES
+// ============================================================
+const ROLES = [
+  { id:'C', name:'レジ・案内',       color:'var(--role-C)', must:true  },
+  { id:'B', name:'ドリンク・デザート', color:'var(--role-B)', must:true  },
+  { id:'H', name:'配膳・オーダー',    color:'var(--role-H)', must:false },
+  { id:'D', name:'料理仕上・管理',    color:'var(--role-D)', must:true  },
+  { id:'K', name:'調理メイン',        color:'var(--role-K)', must:true  },
+  { id:'P', name:'ピザ場',            color:'var(--role-P)', must:false },
+  { id:'W', name:'洗い場',            color:'var(--role-W)', must:false },
+];
+const MUST = ['C','B','D','K'];
+// time range: 8:00-17:00, display 8〜17
+const HOURS = [8,9,10,11,12,13,14,15,16,17];
+
+// ============================================================
+// STATE
+// ============================================================
+let staff = [
+  { id:1, name:'田中 あかり', roles:['C','B','H'], rolePrio:['C','B','H'], defFrom:'09:00', defTo:'17:00', avail:{}, priority:1, maxDays:20, maxDaysWeek:5, maxWkHol:null, prefDays:[], fixedRole:null, flag:'priority' },
+  { id:2, name:'佐藤 ゆい',   roles:['C','B'], rolePrio:['C','B'], defFrom:'10:00', defTo:'16:00', avail:{}, priority:2, maxDays:12, maxDaysWeek:3, maxWkHol:2, prefDays:[1,2,3], fixedRole:null, flag:'normal' },
+  { id:3, name:'山田 けんじ', roles:['K','D','P'], rolePrio:['K','D','P'], defFrom:'08:00', defTo:'17:00', avail:{}, priority:1, maxDays:20, maxDaysWeek:5, maxWkHol:null, prefDays:[], fixedRole:null, flag:'priority' },
+  { id:4, name:'木村 さちこ', roles:['H','W','B'], rolePrio:['H','W','B'], defFrom:'09:00', defTo:'15:00', avail:{}, priority:3, maxDays:8,  maxDaysWeek:2, maxWkHol:1, prefDays:[1,3,5], fixedRole:null, flag:'normal' },
+  { id:5, name:'鈴木 たろう', roles:['K','D'], rolePrio:['K','D'], defFrom:'08:00', defTo:'17:00', avail:{}, priority:2, maxDays:16, maxDaysWeek:4, maxWkHol:null, prefDays:[], fixedRole:null, flag:'normal' },
+  { id:6, name:'中村 はるか', roles:['C','H','W'], rolePrio:['C','H','W'], defFrom:'10:00', defTo:'14:00', avail:{}, priority:3, maxDays:8,  maxDaysWeek:2, maxWkHol:2, prefDays:[0,6], fixedRole:null, flag:'normal' },
+  { id:7, name:'小林 ゆうき', roles:['K','P','W'], rolePrio:['K','P','W'], defFrom:'08:00', defTo:'17:00', avail:{}, priority:2, maxDays:16, maxDaysWeek:4, maxWkHol:null, prefDays:[], fixedRole:null, flag:'normal' },
+  { id:8, name:'加藤 みく',   roles:['B','D','C'], rolePrio:['B','D','C'], defFrom:'09:00', defTo:'16:00', avail:{}, priority:3, maxDays:10, maxDaysWeek:2, maxWkHol:1, prefDays:[2,4], fixedRole:null, flag:'normal' },
+];
+let nextId = 9;
+
+// dayData[key] = { open:bool, assignments:[{staffId,role,timeFrom,timeTo}] }
+let dayData = {};
+
+let curYear = new Date().getFullYear();
+let curMonth = new Date().getMonth();
+// Google Apps Script URL（設定済み）
+const gasUrl = 'https://script.google.com/macros/s/AKfycbzVretuyWf7A5QZEdQM8D2gbHi24t_NWm5U1U00VmXqjziSNi4EWLqnBnefE9c-KjKS/exec';
+let modalKey = null;
+
+// Demo avail
+const now = new Date();
+staff.forEach((s,si)=>{
+  for(let d=1;d<=28;d++){
+    if((d+si)%7!==0&&(d+si)%13!==0){
+      const key=dk(now.getFullYear(),now.getMonth(),d);
+      s.avail[key]=true;
+    }
+  }
+});
+
+// ============================================================
+// HELPERS
+// ============================================================
+function dk(y,m,d){ return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
+function gs(id){ return staff.find(s=>s.id===id); }
+function dd(key){ if(!dayData[key]) dayData[key]={open:false,assignments:[]}; return dayData[key]; }
+
+function timeToMin(t){ const [h,m]=t.split(':').map(Number); return h*60+m; }
+function minToTime(m){ return `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`; }
+
+// get effective time for staff on a day (override > default)
+function effFrom(s, key){ const a=dd(key).assignments.find(x=>x.staffId===s.id); return (a&&a.timeFrom)||s.defFrom; }
+function effTo(s, key){ const a=dd(key).assignments.find(x=>x.staffId===s.id); return (a&&a.timeTo)||s.defTo; }
+
+function staffOnDay(key){
+  return dd(key).assignments.filter(a=>a.role).map(a=>({...a,s:gs(a.staffId)})).filter(x=>x.s);
+}
+
+function checkRoles(key,dow){
+  const covered = new Set(staffOnDay(key).map(a=>a.role));
+  const missing = MUST.filter(r=>!covered.has(r));
+  const warnP = (dow===0||dow===6) && !covered.has('P');
+  return {missing,warnP};
+}
+
+function checkTime(key){
+  const assigned = dd(key).assignments.filter(a=>a.role).map(a=>{
+    const s=gs(a.staffId); if(!s) return null;
+    return {from:effFrom(s,key),to:effTo(s,key)};
+  }).filter(Boolean);
+  const at9  = assigned.filter(x=>x.from<='09:00'&&x.to>='10:00').length;
+  const at10 = assigned.filter(x=>x.from<='10:00'&&x.to>='11:00').length;
+  const at11 = assigned.filter(x=>x.from<='11:00'&&x.to>='13:30').length;
+  const issues=[];
+  if(at9<2) issues.push('9時2人不足');
+  if(at10<3) issues.push('10時3人不足');
+  if(at11<MUST.length) issues.push('11〜13:30不足');
+  return issues;
+}
+
+// ============================================================
+// CALENDAR
+// ============================================================
+function renderCalendar(){
+  const y=curYear,m=curMonth;
+  document.getElementById('monthTitle').textContent=`${y}年 ${m+1}月`;
+  const first=new Date(y,m,1).getDay();
+  const days=new Date(y,m+1,0).getDate();
+  const todayKey=dk(new Date().getFullYear(),new Date().getMonth(),new Date().getDate());
+  let open=0,miss=0,warn=0;
+
+  let html='<thead><tr>';
+  ['日','月','火','水','木','金','土'].forEach((d,i)=>html+=`<th class="${i===0?'sun':i===6?'sat':''}">${d}</th>`);
+  html+='</tr></thead><tbody><tr>';
+
+  for(let i=0;i<first;i++) html+='<td class="cal-day empty"></td>';
+  let col=first;
+
+  for(let d=1;d<=days;d++){
+    const key=dk(y,m,d);
+    const data=dd(key);
+    const dow=new Date(y,m,d).getDay();
+    const isOpen=data.open;
+    const avail=staff.filter(s=>s.avail[key]);
+    const {missing,warnP}=checkRoles(key,dow);
+    const timeIss=isOpen?checkTime(key):[];
+    const isMiss=isOpen&&missing.length>0;
+    const isWarn=isOpen&&!isMiss&&(warnP||timeIss.length>0);
+    if(isOpen){open++;if(isMiss)miss++;else if(isWarn)warn++;}
+
+    const sunsat=dow===0?'sun':dow===6?'sat':'';
+    const isHol=JP_HOLIDAYS.has(key);
+    const stateClass=isOpen?(isMiss?'missing':isWarn?'warning':'open'):'';
+    html+=`<td class="cal-day ${stateClass} ${key===todayKey?'today':''} ${sunsat}" onclick="openModal('${key}',${d})">`;
+    html+=`<div class="day-top"><span class="dn" style="${isHol?'color:var(--red)':''} ">${d}${isHol?'<span style="font-size:0.45rem;display:block;line-height:1;color:var(--red)">祝</span>':''}</span>`;
+    html+=`<button class="open-toggle" onclick="event.stopPropagation();toggleOpen('${key}')">${isOpen?'営業':'休業'}</button></div>`;
+
+    if(isOpen){
+      const asgn=staffOnDay(key);
+      if(asgn.length>0){
+        html+='<div class="staff-chips">';
+        asgn.forEach(a=>{
+          const tf=effFrom(a.s,key),tt=effTo(a.s,key);
+          html+=`<span class="chip on">${a.s.name.split(' ')[0]} <b>${a.role}</b></span>`;
+        });
+        html+='</div>';
+      } else {
+        html+=`<div style="font-size:0.6rem;color:var(--text-muted);margin-top:3px">出勤可:${avail.length}人</div>`;
+      }
+      html+='<div class="role-row">';
+      MUST.forEach(r=>{
+        const ok=staffOnDay(key).some(a=>a.role===r);
+        html+=`<span class="rb ${ok?'rb-ok':'rb-ng'}">${r}</span>`;
+      });
+      if(dow===0||dow===6){const ok=staffOnDay(key).some(a=>a.role==='P');html+=`<span class="rb ${ok?'rb-ok':'rb-warn'}">P</span>`;}
+      html+='</div>';
+      if(isMiss) html+=`<span class="alert-chip">⚠ ${missing.join('・')}不足</span>`;
+      if(timeIss.length) html+=`<span class="warn-chip">⏰ ${timeIss[0]}</span>`;
+    } else {
+      html+=`<div style="font-size:0.6rem;color:var(--text-muted);margin-top:6px">出勤可:${avail.length}人</div>`;
+    }
+    html+='</td>';
+    col++;
+    if(col%7===0&&d<days) html+='</tr><tr>';
+  }
+  while(col%7!==0){html+='<td class="cal-day empty"></td>';col++;}
+  html+='</tr></tbody>';
+  document.getElementById('calTable').innerHTML=html;
+  document.getElementById('infoRow').innerHTML=`
+    <div class="info-card"><div class="ic-label">営業日数</div><div class="ic-val" style="color:var(--green)">${open}</div></div>
+    <div class="info-card"><div class="ic-label">役員不足</div><div class="ic-val" style="color:var(--red)">${miss}</div></div>
+    <div class="info-card"><div class="ic-label">注意日</div><div class="ic-val" style="color:var(--yellow)">${warn}</div></div>
+    <div class="info-card"><div class="ic-label">スタッフ</div><div class="ic-val">${staff.length}</div></div>
+  `;
+}
+
+function changeMonth(d){curMonth+=d;if(curMonth<0){curMonth=11;curYear--;}if(curMonth>11){curMonth=0;curYear++;}renderCalendar();}
+function toggleOpen(key){dd(key).open=!dd(key).open;renderCalendar();}
+
+// ============================================================
+// MODAL
+// ============================================================
+function openModal(key,d){
+  modalKey=key;
+  const data=dd(key);
+  const dateObj=new Date(key);
+  const dow=dateObj.getDay();
+  const dowLabel=['日','月','火','水','木','金','土'][dow];
+  document.getElementById('modalTitle').textContent=`${curYear}年${curMonth+1}月${d}日（${dowLabel}）`;
+  renderModalBody(key,d,dow);
+  document.getElementById('overlay').classList.add('open');
+}
+
+function renderModalBody(key,d,dow){
+  const data=dd(key);
+  const avail=staff.filter(s=>s.avail[key]);
+  const unavail=staff.filter(s=>!s.avail[key]);
+
+  let html='';
+
+  // day-level preferred roles (owner can pin a role priority for this day)
+  const ddPref=data.prefRoles||[];
+  html+=`<div style="background:var(--surface2);border-radius:8px;padding:8px 10px;margin-bottom:10px">
+    <div style="font-size:0.72rem;font-weight:700;color:var(--accent);margin-bottom:5px">📌 この日の役割優先順位（タップで固定）</div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px">`;
+  ROLES.forEach(r=>{
+    const pinned=ddPref.includes(r.id);
+    html+=`<button onclick="toggleDayPrefRole('${key}','${r.id}',this)" style="font-size:0.7rem;font-family:'DM Mono',monospace;font-weight:600;padding:3px 9px;border-radius:12px;border:1px solid ${pinned?r.color:'var(--border)'};background:${pinned?r.color:'transparent'};color:${pinned?'#fff':'var(--text-muted)'};cursor:pointer">${r.id}：${r.name}</button>`;
+  });
+  html+=`</div><div style="font-size:0.62rem;color:var(--text-muted);margin-top:4px">固定した役割は候補スタッフの選択欄の先頭に表示されます</div></div>`;
+
+  // open toggle
+  html+=`<div class="open-row">
+    <span style="font-size:0.8rem">営業日</span>
+    <button class="big-toggle ${data.open?'on':''}" onclick="toggleOpen('${key}');renderCalendar();renderModalBody('${key}',${d},${dow})">${data.open?'✓ 営業中':'休業'}</button>
+  </div>`;
+
+  if(data.open){
+    // GANTT
+    html+=buildGantt(key);
+
+    // Assign available
+    // sort avail by: flag priority first, then priority number, then prefDays match
+    avail.sort((a,b)=>{
+      const fa=a.flag==='priority'?0:1, fb=b.flag==='priority'?0:1;
+      if(fa!==fb) return fa-fb;
+      return (a.priority||3)-(b.priority||3);
+    });
+    html+=`<div class="assign-label">出勤可能なスタッフ（★優先順・役割・時刻を設定）</div><div class="assign-rows">`;
+    avail.forEach(s=>{
+      const assigned=countAssignedDays(s.id);
+      const max=s.maxDays||20;
+      const overLimit=assigned>=max;
+      const nearLimit=assigned>=max-2&&!overLimit;
+      const isPrefDay=(s.prefDays||[]).includes(dow);
+      const asgn=data.assignments.find(a=>a.staffId===s.id);
+      const isOn=!!(asgn&&asgn.role);
+      const curFrom=(asgn&&asgn.timeFrom)||s.defFrom;
+      const curTo=(asgn&&asgn.timeTo)||s.defTo;
+      const rowBorder=overLimit?'border:1px solid rgba(192,48,48,0.4)':isPrefDay?'border:1px solid rgba(184,98,42,0.4)':'';
+      html+=`<div class="assign-row" id="ar-${s.id}" style="${rowBorder}">
+        <div class="dot ${isOn?'on':''}" id="dot-${s.id}"></div>
+        <div>
+          <div class="aname" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+            ${s.flag==='priority'?'<span style="font-size:0.6rem;background:var(--accent);color:#fff;padding:1px 5px;border-radius:8px">★優先</span>':''}
+            ${s.fixedRole?`<span style="font-size:0.6rem;background:rgba(184,98,42,0.2);color:var(--accent);padding:1px 5px;border-radius:8px">🔒${s.fixedRole}固定</span>`:''}
+            ${isPrefDay?'<span style="font-size:0.6rem;background:rgba(184,98,42,0.15);color:var(--accent);padding:1px 5px;border-radius:8px">希望曜日</span>':''}
+            ${s.name}
+          </div>
+          <div class="atime">基本: ${s.defFrom}〜${s.defTo}　今月: <span style="color:${overLimit?'var(--red)':nearLimit?'var(--yellow)':'var(--green)'};font-weight:700">${assigned}日</span>/${max}日${overLimit?' ⚠月上限':nearLimit?' △残少':''}　今週: <span style="color:${countAssignedDaysInWeek(s.id,key)>=(s.maxDaysWeek||7)?'var(--red)':'inherit'};font-weight:700">${countAssignedDaysInWeek(s.id,key)}日</span>/${s.maxDaysWeek||7}日${countAssignedDaysInWeek(s.id,key)>=(s.maxDaysWeek||7)?' ⚠週上限':''}${s.maxWkHol!=null&&isWeekendOrHoliday(key)?' 　土日祝: <span style=\"color:'+(countWkHolDays(s.id)>=(s.maxWkHol)?'var(--red)':countWkHolDays(s.id)>=s.maxWkHol-1?'var(--yellow)':'var(--green)')+'\">'+countWkHolDays(s.id)+'日/'+s.maxWkHol+'日'+(countWkHolDays(s.id)>=s.maxWkHol?' ⚠上限':'')+'</span>':''}</div>
+          <div class="aroles">${s.roles.join(' / ')}</div>
+          <div class="time-override">
+            <span class="to-label">この日:</span>
+            <input type="time" class="to-input" value="${curFrom}" onchange="setTime('${key}',${s.id},'timeFrom',this.value)">
+            <span class="to-label">〜</span>
+            <input type="time" class="to-input" value="${curTo}" onchange="setTime('${key}',${s.id},'timeTo',this.value)">
+          </div>
+        </div>
+        <select class="role-sel" onchange="setRole('${key}',${s.id},this.value)">
+          <option value="">― 休み</option>`;
+      // if fixedRole set, auto-assign it
+      if(s.fixedRole && (!asgn || !asgn.role)){
+        // auto-apply fixed role
+        let fa=data.assignments.find(x=>x.staffId===s.id);
+        if(!fa){fa={staffId:s.id,role:'',timeFrom:null,timeTo:null};data.assignments.push(fa);}
+        fa.role=s.fixedRole;
+      }
+      const curRole2=(data.assignments.find(a=>a.staffId===s.id)||{}).role||'';
+      // sort by rolePrio
+      const orderedRoles=[...(s.rolePrio||s.roles||[])].filter(r=>s.roles.includes(r));
+      const selDisabled=!!s.fixedRole;
+      html+=`<select class="role-sel" ${selDisabled?'style="opacity:0.7"':''} onchange="setRole('${key}',${s.id},this.value)">`;
+      html+=`<option value="" ${!curRole2?'selected':''}>― 休み</option>`;
+      orderedRoles.forEach((r,i)=>{const ro=ROLES.find(x=>x.id===r);html+=`<option value="${r}" ${curRole2===r?'selected':''}>${selDisabled&&r===s.fixedRole?'🔒':i+1+'位'} ${r}：${ro?ro.name:r}</option>`;});
+      html+=`</select>`;
+      html+=`</div>`;
+    });
+    html+='</div>';
+
+    if(unavail.length){
+      html+=`<div class="assign-label" style="margin-top:4px">出勤不可</div><div class="assign-rows">`;
+      unavail.forEach(s=>{html+=`<div class="assign-row unavail"><div class="dot"></div><div><div class="aname">${s.name}</div></div><span style="font-size:0.65rem;color:var(--text-muted)">休み希望</span></div>`;});
+      html+='</div>';
+    }
+
+    // Alerts
+    const {missing,warnP}=checkRoles(key,dow);
+    const timeIss=checkTime(key);
+    if(missing.length) html+=`<div class="modal-alert">⚠ 必須ポジション不足：${missing.map(r=>ROLES.find(x=>x.id===r)?.name||r).join('・')}</div>`;
+    if(warnP) html+=`<div class="modal-warn">⚠ 土日はピザ場（P）がいた方が良いです</div>`;
+    if(timeIss.length) html+=`<div class="modal-warn">⏰ ${timeIss.join(' / ')}</div>`;
+  }
+
+  document.getElementById('modalBody').innerHTML=html;
+}
+
+function buildGantt(key){
+  const shopOpen='10:00', shopClose='16:00';
+  const startH=8, endH=17, totalMin=(endH-startH)*60;
+  const assigned=dd(key).assignments.filter(a=>a.role);
+  if(!assigned.length) return '';
+
+  let html=`<div class="gantt-section"><div class="gantt-title">📊 タイムスケジュール</div><div class="gantt-wrap">`;
+  // axis
+  html+=`<div class="gantt-axis">`;
+  for(let h=startH;h<=endH;h++) html+=`<div class="gantt-tick">${h}</div>`;
+  html+=`</div>`;
+
+  assigned.forEach(a=>{
+    const s=gs(a.staffId); if(!s) return;
+    const from=effFrom(s,key), to=effTo(s,key);
+    const left=((timeToMin(from)-startH*60)/totalMin*100).toFixed(1);
+    const width=((timeToMin(to)-timeToMin(from))/totalMin*100).toFixed(1);
+    const reqLeft=((timeToMin('11:00')-startH*60)/totalMin*100).toFixed(1);
+    const reqRight=((timeToMin('13:30')-startH*60)/totalMin*100).toFixed(1);
+    html+=`<div class="gantt-row">
+      <div class="gantt-name">${s.name.split(' ')[0]}</div>
+      <div class="gantt-track">
+        <div class="gantt-bar" style="left:${left}%;width:${width}%;background:var(--role-${a.role})"></div>
+        <div class="req-line" style="left:${reqLeft}%" title="11:00"></div>
+        <div class="req-line" style="left:${reqRight}%" title="13:30"></div>
+      </div>
+    </div>`;
+  });
+  html+=`</div></div>`;
+  return html;
+}
+
+function setRole(key,staffId,role){
+  const data=dd(key);
+  let a=data.assignments.find(x=>x.staffId===staffId);
+  if(!a){ a={staffId,role:'',timeFrom:null,timeTo:null}; data.assignments.push(a); }
+  a.role=role;
+  renderCalendar();
+  const dot=document.getElementById(`dot-${staffId}`);
+  if(dot) dot.className='dot '+(role?'on':'');
+  // refresh gantt
+  const gantt=document.querySelector('.gantt-section');
+  if(gantt) gantt.outerHTML=buildGantt(key);
+}
+
+function setTime(key,staffId,field,val){
+  const data=dd(key);
+  let a=data.assignments.find(x=>x.staffId===staffId);
+  if(!a){ a={staffId,role:'',timeFrom:null,timeTo:null}; data.assignments.push(a); }
+  a[field]=val;
+  renderCalendar();
+}
+
+function toggleDayPrefRole(key,rid,btn){
+  const data=dd(key);
+  if(!data.prefRoles) data.prefRoles=[];
+  const idx=data.prefRoles.indexOf(rid);
+  if(idx>=0){
+    data.prefRoles.splice(idx,1);
+    const ro=ROLES.find(r=>r.id===rid);
+    btn.style.background='transparent'; btn.style.borderColor='var(--border)'; btn.style.color='var(--text-muted)';
+  } else {
+    data.prefRoles.push(rid);
+    const ro=ROLES.find(r=>r.id===rid);
+    btn.style.background=ro?ro.color:'var(--accent)'; btn.style.borderColor=ro?ro.color:'var(--accent)'; btn.style.color='#fff';
+  }
+}
+
+function closeModal(){ document.getElementById('overlay').classList.remove('open'); modalKey=null; }
+function closeMaybe(e){ if(e.target===document.getElementById('overlay')) closeModal(); }
+
+// ============================================================
+// LINE PARSE
+// ============================================================
+function updatePasteStaff(){
+  document.getElementById('pasteStaff').innerHTML=staff.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+}
+
+async function parseLine(){
+  const sid=parseInt(document.getElementById('pasteStaff').value);
+  const txt=document.getElementById('pasteTxt').value.trim();
+  const res=document.getElementById('parseResult');
+  if(!txt){res.innerHTML='<div class="parse-result twarn">テキストを入力してください</div>';return;}
+  const s=gs(sid); if(!s) return;
+  res.innerHTML='<div class="parse-result" style="color:var(--text-muted)">🤖 解析中...</div>';
+  const y=curYear,m=curMonth+1,daysIn=new Date(curYear,curMonth+1,0).getDate();
+  const prompt=`あなたはシフト管理AIです。スタッフからのLINEメッセージを読んで${y}年${m}月（${daysIn}日まで）の出勤可能日を抽出してください。
+メッセージ：${txt}
+JSON形式のみで回答（他の文字列不要）：{"available":[1,2,...],"unavailable":[3,4,...],"notes":""}`;
+  try{
+    const resp=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:400,messages:[{role:"user",content:prompt}]})});
+    const data=await resp.json();
+    const raw=data.content.map(i=>i.text||'').join('').replace(/```json|```/g,'').trim();
+    const parsed=JSON.parse(raw);
+    (parsed.available||[]).forEach(d=>{s.avail[dk(y,curMonth,d)]=true;});
+    (parsed.unavailable||[]).forEach(d=>{s.avail[dk(y,curMonth,d)]=false;});
+    renderCalendar();
+    res.innerHTML=`<div class="parse-result"><span class="tok">✓ ${s.name}さんの${m}月を更新</span>\n出勤可：<span class="tok">${(parsed.available||[]).sort((a,b)=>a-b).join('・')}日</span>\n出勤不可：<span class="twarn">${(parsed.unavailable||[]).sort((a,b)=>a-b).join('・')}日</span>${parsed.notes?'\nメモ：'+parsed.notes:''}</div>`;
+  }catch(e){res.innerHTML=`<div class="parse-result twarn">解析エラー: ${e.message}</div>`;}
+}
+
+function generateNotice(){
+  const dateStr=document.getElementById('noticeDate').value;
+  if(!dateStr){document.getElementById('noticeResult').innerHTML='<div class="parse-result twarn">日付を選んでください</div>';return;}
+  const d=new Date(dateStr), key=dateStr, data=dd(key);
+  const dow=['日','月','火','水','木','金','土'][d.getDay()];
+  const label=`${d.getMonth()+1}月${d.getDate()}日（${dow}）`;
+  if(!data.open||!data.assignments.filter(a=>a.role).length){
+    document.getElementById('noticeResult').innerHTML='<div class="parse-result twarn">営業日かつアサインが必要です</div>';return;
+  }
+  let msg=`【明日のシフト】Cafe照\n━━━━━━━━━━━\n📅 ${label}\n🕙 営業 10:00〜16:00\n\n【出勤メンバー】\n`;
+  data.assignments.filter(a=>a.role).forEach(a=>{
+    const s=gs(a.staffId); if(!s) return;
+    const from=effFrom(s,key), to=effTo(s,key);
+    const ro=ROLES.find(r=>r.id===a.role);
+    msg+=`・${s.name}　${from}〜${to}\n　▶ ${a.role}：${ro?ro.name:a.role}\n`;
+  });
+  const asgn=data.assignments.filter(a=>a.role);
+  msg+=`\n【時間帯人数】\n`;
+  msg+=`・9時〜  ${asgn.filter(a=>{const s=gs(a.staffId);return s&&effFrom(s,key)<='09:00';}).length}人\n`;
+  msg+=`・10時〜 ${asgn.filter(a=>{const s=gs(a.staffId);return s&&effFrom(s,key)<='10:00';}).length}人\n`;
+  msg+=`・11時〜13:30 ${asgn.filter(a=>{const s=gs(a.staffId);return s&&effFrom(s,key)<='11:00'&&effTo(s,key)>='13:30';}).length}人\n`;
+  msg+=`\nよろしくお願いします🍕`;
+  document.getElementById('noticeResult').innerHTML=`<div class="notice-box">${msg}</div><button class="copy-btn" onclick="cpNotice(this,\`${msg.replace(/`/g,"'")}\`)">📋 LINEにコピー</button>`;
+}
+function cpNotice(btn,t){navigator.clipboard.writeText(t).then(()=>{btn.textContent='✓ コピーしました！';setTimeout(()=>btn.textContent='📋 LINEにコピー',2000);});}
+
+// ============================================================
+// GOOGLE SHEETS SYNC
+// ============================================================
+async function testGas(){
+  const el=document.getElementById('gasTestResult');
+  el.textContent='確認中...';
+  try{
+    const r=await fetch(gasUrl+'?t='+Date.now());
+    if(r.ok){el.style.color='var(--green)';el.textContent='✓ Google スプレッドシートに接続できました！';}
+    else{el.style.color='var(--red)';el.textContent='⚠ 接続エラー。Apps ScriptのURLを確認してください。';}
+  }catch(e){el.style.color='var(--red)';el.textContent='⚠ 接続できません: '+e.message;}
+}
+
+async function syncAll(){
+  const payload=JSON.stringify({staff,dayData});
+  document.getElementById('syncStatus').textContent='保存中...';
+  // 常にローカルに保存（フォールバック用）
+  localStorage.setItem('cafeShiftData',payload);
+  try{
+    const r=await fetch(gasUrl,{
+      method:'POST',
+      headers:{'Content-Type':'text/plain'},
+      redirect:'follow',
+      body:payload
+    });
+    const txt=await r.text();
+    const now=new Date().toLocaleString('ja-JP');
+    document.getElementById('syncStatus').textContent=`最終保存: ${now}`;
+    localStorage.setItem('cafeShiftSavedAt', now);
+    alert('✓ Googleスプレッドシートに保存しました！');
+  }catch(e){
+    document.getElementById('syncStatus').textContent='ローカル保存のみ（GAS通信エラー）';
+    alert('⚠ GASへの保存に失敗しました。\nローカルには保存されています。\nエラー: '+e.message);
+  }
+}
+
+function applyStaffDefaults(s){
+  return {priority:3,maxDays:20,maxDaysWeek:7,maxWkHol:null,fixedRole:null,prefDays:[],flag:'normal',rolePrio:[],
+    ...s, avail:s.avail||{}, rolePrio:s.rolePrio||s.roles||[]};
+}
+
+function loadFromLocal(){
+  try{
+    const local=localStorage.getItem('cafeShiftData');
+    if(!local) return false;
+    const d=JSON.parse(local);
+    if(d.staff&&d.staff.length>0){
+      staff=d.staff.map(applyStaffDefaults);
+      if(d.dayData) dayData=d.dayData;
+      const savedAt=localStorage.getItem('cafeShiftSavedAt')||'';
+      document.getElementById('syncStatus').textContent='ローカルから復元'+(savedAt?' ('+savedAt+')':'');
+      return true;
+    }
+  }catch(e){ console.warn('local load error',e); }
+  return false;
+}
+
+async function loadFromGas(){
+  // まずローカルから読み込んで表示
+  loadFromLocal();
+  renderCalendar();
+  renderStaffCards();
+  updatePasteStaff();
+  document.getElementById('syncStatus').textContent='読込中...';
+
+  // GASから最新データを取得（リダイレクト対応）
+  try{
+    const r=await fetch(gasUrl, {
+      method:'GET',
+      redirect:'follow',
+      cache:'no-cache'
+    });
+    const text=await r.text();
+    // テキストからJSONを抽出（余分な文字が含まれる場合の対策）
+    const jsonStart=text.indexOf('{');
+    const jsonEnd=text.lastIndexOf('}');
+    if(jsonStart<0||jsonEnd<0) throw new Error('JSON形式ではありません');
+    const jsonText=text.slice(jsonStart,jsonEnd+1);
+    const data=JSON.parse(jsonText);
+    if(data.staff&&data.staff.length>0){
+      staff=data.staff.map(applyStaffDefaults);
+      if(data.dayData) dayData=data.dayData;
+      localStorage.setItem('cafeShiftData', JSON.stringify({staff,dayData}));
+      renderCalendar();
+      renderStaffCards();
+      updatePasteStaff();
+      const now=new Date().toLocaleTimeString('ja-JP');
+      document.getElementById('syncStatus').textContent='読込完了 '+now+' ✓';
+    } else {
+      document.getElementById('syncStatus').textContent='データなし（初回）';
+    }
+  }catch(e){
+    console.warn('GAS load failed:', e.message);
+    document.getElementById('syncStatus').textContent='読込エラー: '+e.message;
+  }
+}
+
+// ============================================================
+// STAFF CARDS
+// ============================================================
+// Build draggable role priority list HTML for a staff
+function buildRolePrioHTML(s){
+  // Start with rolePrio order, then add any roles not yet in list
+  const ordered = [...(s.rolePrio||[])];
+  s.roles.forEach(r=>{ if(!ordered.includes(r)) ordered.push(r); });
+  // Also show all ROLES not in staff.roles as disabled
+  ROLES.forEach(r=>{ if(!ordered.includes(r.id)) ordered.push(r.id); });
+  return ordered.map((rid,i)=>{
+    const ro=ROLES.find(x=>x.id===rid);
+    if(!ro) return '';
+    const active=s.roles.includes(rid);
+    return `<div class="rp-item" draggable="true" data-sid="${s.id}" data-rid="${rid}"
+      ondragstart="rpDragStart(event)" ondragover="rpDragOver(event)" ondrop="rpDrop(event,${s.id})"
+      style="display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:6px;border:1px solid ${active?'var(--border)':'rgba(0,0,0,0.06)'};background:${active?'var(--surface)':'rgba(0,0,0,0.03)'};cursor:grab;opacity:${active?1:0.4}">
+      <span style="font-size:0.65rem;color:var(--text-muted);font-family:'DM Mono',monospace;width:16px;text-align:center">${active?i+1:'—'}</span>
+      <span style="width:8px;height:8px;border-radius:50%;background:${ro.color};flex-shrink:0"></span>
+      <span style="font-size:0.75rem;font-family:'DM Mono',monospace;font-weight:600;min-width:18px">${rid}</span>
+      <span style="font-size:0.72rem;flex:1">${ro.name}</span>
+      <button onclick="toggleRoleActive(${s.id},'${rid}',this)" style="font-size:0.62rem;padding:2px 7px;border-radius:4px;border:1px solid ${active?'var(--border)':'var(--border)'};background:${active?ro.color:'transparent'};color:${active?'#fff':'var(--text-muted)'};cursor:pointer">${active?'✓ 有効':'無効'}</button>
+    </div>`;
+  }).join('');
+}
+
+let rpDragSrc = null;
+function rpDragStart(e){
+  rpDragSrc=e.currentTarget;
+  e.dataTransfer.effectAllowed='move';
+}
+function rpDragOver(e){ e.preventDefault(); e.dataTransfer.dropEffect='move'; }
+function rpDrop(e, staffId){
+  e.preventDefault();
+  if(!rpDragSrc||rpDragSrc===e.currentTarget) return;
+  const s=gs(staffId); if(!s) return;
+  const fromRid=rpDragSrc.dataset.rid;
+  const toRid=e.currentTarget.dataset.rid;
+  // Rebuild full ordered list
+  const allRids=ROLES.map(r=>r.id);
+  const ordered=[...(s.rolePrio||[])];
+  allRids.forEach(r=>{ if(!ordered.includes(r)) ordered.push(r); });
+  const fi=ordered.indexOf(fromRid), ti=ordered.indexOf(toRid);
+  if(fi<0||ti<0) return;
+  ordered.splice(fi,1); ordered.splice(ti,0,fromRid);
+  s.rolePrio=ordered.filter(r=>s.roles.includes(r)); // keep only active in prio
+  // re-render just this card's list
+  const el=document.getElementById('rp-'+staffId);
+  if(el) el.innerHTML=buildRolePrioHTML(s);
+}
+function toggleRoleActive(staffId, rid, btn){
+  const s=gs(staffId); if(!s) return;
+  const idx=s.roles.indexOf(rid);
+  if(idx>=0){
+    s.roles.splice(idx,1);
+    s.rolePrio=(s.rolePrio||[]).filter(r=>r!==rid);
+  } else {
+    s.roles.push(rid);
+    if(!(s.rolePrio||[]).includes(rid)) s.rolePrio=[...(s.rolePrio||[]),rid];
+  }
+  const el=document.getElementById('rp-'+staffId);
+  if(el) el.innerHTML=buildRolePrioHTML(s);
+}
+
+// helper: count assigned days in current month for a staff
+function countAssignedDays(staffId){
+  const y=curYear, m=curMonth;
+  const daysIn=new Date(y,m+1,0).getDate();
+  let cnt=0;
+  for(let d=1;d<=daysIn;d++){
+    const key=dk(y,m,d);
+    if(dd(key).open && dd(key).assignments.some(a=>a.staffId===staffId&&a.role)) cnt++;
+  }
+  return cnt;
+}
+
+// count assigned days in the ISO week containing dateKey
+function countAssignedDaysInWeek(staffId, dateKey){
+  const base=new Date(dateKey);
+  const dow=base.getDay(); // 0=sun
+  // get Monday of that week
+  const mon=new Date(base);
+  mon.setDate(base.getDate() - (dow===0?6:dow-1));
+  let cnt=0;
+  for(let i=0;i<7;i++){
+    const d=new Date(mon); d.setDate(mon.getDate()+i);
+    const k=dk(d.getFullYear(),d.getMonth(),d.getDate());
+    if(dayData[k]&&dayData[k].open&&dayData[k].assignments&&dayData[k].assignments.some(a=>a.staffId===staffId&&a.role)) cnt++;
+  }
+  return cnt;
+}
+
+function renderStaffCards(){
+  const el=document.getElementById('staffCards');
+  el.innerHTML='';
+  // sort by priority
+  const sorted=[...staff].sort((a,b)=>(a.priority||3)-(b.priority||3));
+  sorted.forEach(s=>{
+    const card=document.createElement('div');
+    card.className='scard';
+    const assigned=countAssignedDays(s.id);
+    const max=s.maxDays||20;
+    const pct=Math.min(100,Math.round(assigned/max*100));
+    const barColor=pct>=100?'var(--red)':pct>=80?'var(--yellow)':'var(--green)';
+    const rbtns=ROLES.map(r=>`<button class="rtoggle" style="${s.roles.includes(r.id)?`background:${r.color};border-color:${r.color};color:#fff`:''}" onclick="toggleRole(${s.id},'${r.id}',this)">${r.id}：${r.name}</button>`).join('');
+    const DAYS7=['日','月','火','水','木','金','土'];
+    const prefBtns=DAYS7.map((d,i)=>`<button class="rtoggle" style="${(s.prefDays||[]).includes(i)?'background:var(--accent);border-color:var(--accent);color:#fff':''}" onclick="togglePrefDay(${s.id},${i},this)">${d}</button>`).join('');
+    card.innerHTML=`
+      <div class="sc-hdr">
+        <div style="display:flex;align-items:center;gap:6px;flex:1;flex-wrap:wrap">
+          <span style="font-size:0.7rem;background:${(s.flag||'normal')==='priority'?'var(--accent)':'var(--surface3)'};color:${(s.flag||'normal')==='priority'?'#fff':'var(--text-muted)'};padding:2px 7px;border-radius:10px;cursor:pointer;white-space:nowrap" onclick="toggleFlag(${s.id},this)">${(s.flag||'normal')==='priority'?'★ 優先':'通常'}</span>
+          <input class="sc-name" value="${s.name}" onchange="updSt(${s.id},'name',this.value);renderCalendar()">
+        </div>
+        <button class="del-btn" onclick="delStaff(${s.id})">削除</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:7px 10px;background:var(--surface2);border-radius:7px">
+        <span style="font-size:0.7rem;color:var(--text-muted);white-space:nowrap">🔒 固定役割</span>
+        <select class="fsel" style="flex:1;font-size:0.75rem" onchange="updSt(${s.id},'fixedRole',this.value||null)">
+          <option value="" ${!s.fixedRole?'selected':''}>固定なし（日ごとに設定）</option>
+          ${ROLES.map(r=>`<option value="${r.id}" ${s.fixedRole===r.id?'selected':''}>${r.id}：${r.name}</option>`).join('')}
+        </select>
+        ${s.fixedRole?`<span style="font-size:0.65rem;background:rgba(184,98,42,0.15);color:var(--accent);padding:2px 7px;border-radius:8px;white-space:nowrap">常に ${s.fixedRole}</span>`:''}
+      </div>
+      <div class="sc-grid" style="grid-template-columns:1fr 1fr 1fr 1fr 1fr 1fr">
+        <div><label class="flabel">優先度</label><input type="number" class="finput" value="${s.priority||3}" min="1" max="10" onchange="updSt(${s.id},'priority',parseInt(this.value)||3);renderStaffCards()"></div>
+        <div><label class="flabel">月最大日数</label><input type="number" class="finput" value="${max}" min="1" max="31" onchange="updSt(${s.id},'maxDays',parseInt(this.value)||20)"></div>
+        <div><label class="flabel">週最大日数</label><input type="number" class="finput" value="${s.maxDaysWeek||7}" min="1" max="7" onchange="updSt(${s.id},'maxDaysWeek',parseInt(this.value)||7)"></div>
+        <div><label class="flabel">月の土日祝上限</label><input type="number" class="finput" placeholder="制限なし" value="${s.maxWkHol!=null?s.maxWkHol:''}" min="0" max="20" onchange="updSt(${s.id},'maxWkHol',this.value===''?null:parseInt(this.value))"></div>
+        <div><label class="flabel">基本 出勤</label><input type="time" class="finput" value="${s.defFrom}" onchange="updSt(${s.id},'defFrom',this.value)"></div>
+        <div><label class="flabel">基本 退勤</label><input type="time" class="finput" value="${s.defTo}" onchange="updSt(${s.id},'defTo',this.value)"></div>
+      </div>
+      <div style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;font-size:0.65rem;color:var(--text-muted);margin-bottom:3px">
+          <span>今月: <b style="color:${barColor}">${assigned}日</b>/${max}日　今週: <b id="wk-${s.id}">-</b>/${s.maxDaysWeek||7}日　土日祝: <b id="wkh-${s.id}">-</b>${s.maxWkHol!=null?'/'+s.maxWkHol+'日':''}</span>
+          <span>${pct>=100?'⚠ 月上限':pct>=80?'⚠ 月上限近':''}  </span>
+        </div>
+        <div style="background:var(--surface3);border-radius:4px;height:6px;overflow:hidden">
+          <div style="width:${pct}%;height:100%;background:${barColor};border-radius:4px;transition:width .3s"></div>
+        </div>
+      </div>
+      <label class="flabel">優先して入れたい曜日（タップで切替）</label>
+      <div class="role-wrap" style="margin-bottom:8px">${prefBtns}</div>
+      <label class="flabel">担当できる役割と優先順位（ドラッグで並び替え・タップで有効/無効）</label>
+      <div class="role-prio-list" id="rp-${s.id}" style="display:flex;flex-direction:column;gap:4px;margin-top:4px">
+        ${buildRolePrioHTML(s)}
+      </div>
+    `;
+    el.appendChild(card);
+  });
+}
+
+// Japan public holidays (yyyy-mm-dd)
+const JP_HOLIDAYS = new Set([
+  '2025-01-01','2025-01-13','2025-02-11','2025-02-23','2025-02-24',
+  '2025-03-20','2025-04-29','2025-05-03','2025-05-04','2025-05-05','2025-05-06',
+  '2025-07-21','2025-08-11','2025-09-15','2025-09-22','2025-09-23',
+  '2025-10-13','2025-11-03','2025-11-23','2025-11-24',
+  '2026-01-01','2026-01-12','2026-02-11','2026-02-23',
+  '2026-03-20','2026-04-29','2026-05-03','2026-05-04','2026-05-05','2026-05-06',
+  '2026-07-20','2026-08-11','2026-09-21','2026-09-22','2026-09-23',
+  '2026-10-12','2026-11-03','2026-11-23',
+]);
+
+function isWeekendOrHoliday(dateKey){
+  const d=new Date(dateKey);
+  const dow=d.getDay();
+  return dow===0||dow===6||JP_HOLIDAYS.has(dateKey);
+}
+
+// count weekend/holiday assigned days in current month for a staff
+function countWkHolDays(staffId){
+  const y=curYear, m=curMonth;
+  const daysIn=new Date(y,m+1,0).getDate();
+  let cnt=0;
+  for(let d=1;d<=daysIn;d++){
+    const key=dk(y,m,d);
+    if(isWeekendOrHoliday(key)&&dayData[key]&&dayData[key].open&&
+       dayData[key].assignments&&dayData[key].assignments.some(a=>a.staffId===staffId&&a.role)) cnt++;
+  }
+  return cnt;
+}
+
+// Fill in live week counts after staff cards render
+function fillWeekCounts(){
+  const today=new Date();
+  const todayKey=dk(today.getFullYear(),today.getMonth(),today.getDate());
+  staff.forEach(s=>{
+    const el=document.getElementById('wk-'+s.id);
+    if(el){
+      const cnt=countAssignedDaysInWeek(s.id,todayKey);
+      const max=s.maxDaysWeek||7;
+      el.textContent=cnt;
+      el.style.color=cnt>=max?'var(--red)':cnt>=max-1?'var(--yellow)':'var(--green)';
+    }
+    const el2=document.getElementById('wkh-'+s.id);
+    if(el2){
+      const cnt2=countWkHolDays(s.id);
+      const max2=s.maxWkHol;
+      el2.textContent=cnt2;
+      if(max2!=null) el2.style.color=cnt2>=max2?'var(--red)':cnt2>=max2-1?'var(--yellow)':'var(--green)';
+    }
+  });
+}
+
+function toggleFlag(id,btn){
+  const s=gs(id); if(!s) return;
+  s.flag=(s.flag==='priority')?'normal':'priority';
+  btn.style.background=s.flag==='priority'?'var(--accent)':'var(--surface3)';
+  btn.style.color=s.flag==='priority'?'#fff':'var(--text-muted)';
+  btn.textContent=s.flag==='priority'?'★ 優先':'通常';
+}
+
+function togglePrefDay(id,day,btn){
+  const s=gs(id); if(!s) return;
+  if(!s.prefDays) s.prefDays=[];
+  const i=s.prefDays.indexOf(day);
+  if(i>=0){s.prefDays.splice(i,1);btn.style.background='';btn.style.borderColor='';btn.style.color='';}
+  else{s.prefDays.push(day);btn.style.background='var(--accent)';btn.style.borderColor='var(--accent)';btn.style.color='#fff';}
+}
+// toggleRole replaced by toggleRoleActive
+function updSt(id,k,v){const s=gs(id);if(s)s[k]=v;}
+function addStaff(){staff.push({id:nextId++,name:'新スタッフ',roles:['C'],rolePrio:['C'],defFrom:'09:00',defTo:'17:00',avail:{},priority:3,maxDays:12,maxDaysWeek:3,maxWkHol:null,fixedRole:null,prefDays:[],flag:'normal'});renderStaffCards();updatePasteStaff();}
+function delStaff(id){if(!confirm('削除しますか？'))return;staff=staff.filter(s=>s.id!==id);renderStaffCards();renderCalendar();updatePasteStaff();}
+
+// ============================================================
+// WEEKLY ROLE VIEW
+// ============================================================
+let weekOffset = 0; // offset from current week (Mon-Sun)
+
+function getWeekDates(offset){
+  const today = new Date();
+  const dow = today.getDay();
+  const mon = new Date(today);
+  mon.setDate(today.getDate() - (dow===0?6:dow-1) + offset*7);
+  const dates = [];
+  for(let i=0;i<7;i++){
+    const d = new Date(mon);
+    d.setDate(mon.getDate()+i);
+    dates.push(d);
+  }
+  return dates;
+}
+
+function changeWeekOffset(d){ weekOffset+=d; renderWeeklyView(); }
+
+function renderWeeklyView(){
+  const dates = getWeekDates(weekOffset);
+  const DOW_LABELS = ['月','火','水','木','金','土','日'];
+  const DOW_CLASSES = ['','','','','','day-sat','day-sun'];
+
+  // Week title
+  const fmt = d => `${d.getMonth()+1}/${d.getDate()}`;
+  document.getElementById('weekTitle').textContent =
+    `${dates[0].getFullYear()}年 ${fmt(dates[0])}（月）〜 ${fmt(dates[6])}（日）`;
+
+  const todayKey = dk(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+
+  // ── TABLE 1: Role × Day ──
+  let html = '<div class="wstaff-title">🎯 役割別・日程表</div>';
+  html += '<table class="wrole-table"><thead><tr>';
+  html += '<th class="col-role">役割</th>';
+  dates.forEach((d,i)=>{
+    const key = dk(d.getFullYear(),d.getMonth(),d.getDate());
+    const isHol = JP_HOLIDAYS.has(key);
+    const isSun = d.getDay()===0, isSat = d.getDay()===6;
+    const cls = isSun?'day-sun':isSat?'day-sat':'';
+    const holMark = isHol?'<span style="font-size:0.5rem;display:block;color:var(--red)">祝</span>':'';
+    const todayMark = key===todayKey?'<span style="font-size:0.5rem;display:block;color:var(--accent)">今日</span>':'';
+    html += `<th class="${cls} ${isHol?'day-hol':''}">${fmt(d)}<br>${DOW_LABELS[i]}${holMark}${todayMark}</th>`;
+  });
+  html += '</tr></thead><tbody>';
+
+  ROLES.forEach(role=>{
+    html += `<tr><td class="role-label" style="border-left-color:${role.color}">`+
+      `<span style="font-family:'DM Mono',monospace;font-weight:700;font-size:0.75rem">${role.id}</span>`+
+      `<span style="font-size:0.65rem;color:var(--text-muted);margin-left:4px">${role.name}</span>`+
+      `${role.must?'<span style="font-size:0.55rem;background:rgba(192,48,48,0.15);color:var(--red);padding:1px 4px;border-radius:3px;margin-left:4px">必須</span>':''}</td>`;
+    dates.forEach((d,i)=>{
+      const key = dk(d.getFullYear(),d.getMonth(),d.getDate());
+      const data = dd(key);
+      const isSun = d.getDay()===0, isSat = d.getDay()===6;
+      const cls = isSun?'day-sun':isSat?'day-sat':'';
+      if(!data.open){ html+=`<td class="closed-cell ${cls}">休業</td>`; return; }
+      const asgn = data.assignments.find(a=>a.role===role.id);
+      if(asgn){
+        const s = gs(asgn.staffId);
+        const from = s?effFrom(s,key):'?', to = s?effTo(s,key):'?';
+        const isFixedWk=s&&s.fixedRole&&s.fixedRole===role.id;
+        html+=`<td class="${cls}"><span class="name-chip" style="background:${role.color}22;color:${role.color};border:1px solid ${role.color}55">${isFixedWk?'🔒':''}${s?s.name.split(' ')[0]:'?'}</span><div style="font-size:0.6rem;color:var(--text-muted);font-family:'DM Mono',monospace;margin-top:2px">${from.slice(0,5)}〜${to.slice(0,5)}</div></td>`;
+      } else {
+        // show if anyone available can do this role
+        const canDo = staff.filter(s=>s.roles.includes(role.id)&&s.avail[key]);
+        html+=`<td class="${cls}" style="background:${role.must&&canDo.length===0?'rgba(192,48,48,0.07)':''}">`+
+          `<span style="color:${role.must?'var(--red)':'var(--border)'};font-size:0.8rem">—</span>`+
+          `${canDo.length>0?'<div style="font-size:0.58rem;color:var(--text-muted)">候補'+canDo.length+'人</div>':role.must?'<div style="font-size:0.58rem;color:var(--red)">要確保</div>':''}`+
+          `</td>`;
+      }
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  document.getElementById('weeklyRoleTable').innerHTML = html;
+
+  // ── TABLE 2: Staff × Day ──
+  let html2 = '<div class="wstaff-title" style="margin-top:16px">👤 スタッフ別・役割表</div>';
+  html2 += '<table class="wstaff-table"><thead><tr>';
+  html2 += '<th class="name-col">スタッフ</th>';
+  dates.forEach((d,i)=>{
+    const key=dk(d.getFullYear(),d.getMonth(),d.getDate());
+    const isHol=JP_HOLIDAYS.has(key);
+    const isSun=d.getDay()===0,isSat=d.getDay()===6;
+    const cls=isSun?'day-sun':isSat?'day-sat':'';
+    html2+=`<th class="${cls}">${fmt(d)} ${DOW_LABELS[i]}</th>`;
+  });
+  html2+='</tr></thead><tbody>';
+
+  // sort by priority
+  const sortedStaff=[...staff].sort((a,b)=>(a.flag==='priority'?0:1)-(b.flag==='priority'?0:1)||((a.priority||3)-(b.priority||3)));
+  sortedStaff.forEach(s=>{
+    const isStar = s.flag==='priority';
+    html2+=`<tr><td class="name-col">${isStar?'<span style="color:var(--accent);font-size:0.65rem">★</span> ':''}${s.name}</td>`;
+    dates.forEach((d,i)=>{
+      const key=dk(d.getFullYear(),d.getMonth(),d.getDate());
+      const data=dd(key);
+      const isSun=d.getDay()===0,isSat=d.getDay()===6;
+      const cls=isSun?'day-sun':isSat?'day-sat':'';
+      if(!data.open){html2+=`<td class="closed-cell ${cls}">—</td>`;return;}
+      const asgn=data.assignments.find(a=>a.staffId===s.id&&a.role);
+      if(asgn){
+        const ro=ROLES.find(r=>r.id===asgn.role);
+        const from=effFrom(s,key),to=effTo(s,key);
+        const isFixed=s.fixedRole&&s.fixedRole===asgn.role;
+        html2+=`<td class="${cls}"><span class="role-dot" style="background:${ro?ro.color:'#888'}">${asgn.role}</span>${isFixed?'<span style="font-size:0.5rem;color:var(--accent)">🔒</span>':''}<div style="font-size:0.58rem;color:var(--text-muted);font-family:'DM Mono',monospace;margin-top:1px">${from.slice(0,5)}〜${to.slice(0,5)}</div></td>`;
+      } else if(s.avail[key]){
+        html2+=`<td class="${cls}"><span class="avail-mark">出勤可</span></td>`;
+      } else {
+        html2+=`<td class="${cls}"><span class="off-mark">✕</span></td>`;
+      }
+    });
+    html2+='</tr>';
+  });
+  html2+='</tbody></table>';
+  document.getElementById('weeklyStaffTable').innerHTML = html2;
+}
+
+// ============================================================
+// TABS & INIT
+// ============================================================
+function showPage(name,btn){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  if(btn)btn.classList.add('active');
+  if(name==='staff'){renderStaffCards();setTimeout(fillWeekCounts,50);}
+  if(name==='weekly') renderWeeklyView();
+  if(name==='calendar')renderCalendar();
+}
+
+const tmr=new Date(); tmr.setDate(tmr.getDate()+1);
+document.getElementById('noticeDate').value=tmr.toISOString().slice(0,10);
+updatePasteStaff();
+renderCalendar();
+loadFromGas();
+</script>
+</body>
+</html>
