@@ -315,14 +315,21 @@ body { font-family: 'Noto Sans JP', sans-serif; background: var(--bg); color: va
 <!-- LINE -->
 <div class="page" id="page-line">
   <div class="paste-card">
-    <div class="paste-title">💬 LINEメッセージを貼り付け → 出勤可能日を自動登録</div>
+    <div class="paste-title">💬 LINEメッセージを貼り付け → 欠勤日を自動登録</div>
     <label class="flabel">スタッフを選択</label>
     <select class="paste-sel" id="pasteStaff"></select>
     <label class="flabel">LINEのテキストをそのまま貼り付け</label>
-    <textarea class="paste-ta" id="pasteTxt" placeholder="例：来月は1日・3日・7〜10日が出られます。5日と20日は用事があって無理です。よろしくお願いします！"></textarea>
+    <textarea class="paste-ta" id="pasteTxt" placeholder="欠勤希望日をそのまま貼り付け\n例1：5日、13日、20日\n例2：5日と13日は無理です\n例3：5月欠勤希望\n5日（火）\n13日（水）"></textarea>
     <button class="parse-btn" onclick="parseLine()">🤖 AIで解析してカレンダーに反映</button>
     <div id="parseResult"></div>
   </div>
+  <div class="paste-card">
+    <div class="paste-title">📋 スタッフへの欠勤希望収集メッセージを生成</div>
+    <div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:8px">毎月15日までにスタッフに送るメッセージを生成します</div>
+    <button class="parse-btn" style="background:var(--accent2,#4a7c6f)" onclick="generateRequestMsg()">収集メッセージを生成</button>
+    <div id="requestMsgResult"></div>
+  </div>
+
   <div class="paste-card">
     <div class="paste-title">📤 前日通知メッセージを生成</div>
     <label class="flabel">通知する日付</label>
@@ -746,62 +753,69 @@ function parseLine(){
   const s=gs(sid); if(!s) return;
   const y=curYear, m=curMonth+1, daysIn=new Date(curYear,curMonth+1,0).getDate();
 
-  // パターンベースの日付抽出（APIなし）
   const available=new Set();
   const unavailable=new Set();
 
-  // 「不可・無理・×・休・NG・できない・欠勤」などの否定キーワードを含む行は除外
-  const ngKeywords=/不可|無理|×|NG|ng|できない|出られない|欠勤|休み|休業|だめ|ダメ|だけ無理|だけ不可/;
-  // 「OK・可能・出られる・出勤可・行ける」などの肯定キーワード
-  const okKeywords=/OK|ok|可能|出られる|出勤可|行ける|大丈夫|いけます|でます|出ます/;
+  // 全文に欠勤・不可系キーワードがあるか判定
+  const ngKeywords=/不可|無理|×|NG|ng|できない|出られない|欠勤希望|欠勤|休み希望|休業|だめ|ダメ|お休み希望/;
+  const okKeywords=/出勤可|出られます|出られる|行けます|行ける|大丈夫|いけます|でます|出ます|OKです|okです|可能/;
+  const isExceptPattern=/以外|それ以外|他は|ほかは/.test(txt);
+
+  // 全文にNGキーワードがあれば「欠勤モード」、なければ「出勤可モード」
+  const globalNG = ngKeywords.test(txt);
+  const globalOK = okKeywords.test(txt);
 
   // 行ごとに処理
-  const lines = txt.split(/[\n。、,，]/);
-  
-  // まず全体のトーンを判定（「以外はOK」パターン）
-  const isExceptPattern = /以外|それ以外|他は|ほかは/.test(txt);
-  
-  // 日付を含む行を処理
+  const lines = txt.split(/[
+。]/);
+
+  // 欠勤モードかどうかをトラッキング（「欠勤希望」行以降はNG扱い）
+  let ngMode = false;
+  let okMode = false;
+
   lines.forEach(line => {
-    const isNG = ngKeywords.test(line);
-    const isOK = okKeywords.test(line);
-    
-    // 「〜日〜日」形式や「〜、〜日」形式の複数日抽出
+    const lineNG = ngKeywords.test(line);
+    const lineOK = okKeywords.test(line);
+
+    // この行自体がNGキーワードだけの行（日付なし）→ 以降NGモード
+    if(lineNG && !/[0-9１-９]/.test(line)) { ngMode=true; okMode=false; return; }
+    if(lineOK && !/[0-9１-９]/.test(line)) { okMode=true; ngMode=false; return; }
+
+    // 日付を抽出
     const nums = [];
-    // 範囲指定「3日〜7日」「3〜7日」
-    const rangeMatch = line.matchAll(/([0-9１-９]+)[日]?[〜~−–-]([0-9１-９]+)日/g);
-    for(const m of rangeMatch){
-      const from=parseInt(m[1].replace(/[１-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-65248)));
-      const to=parseInt(m[2].replace(/[１-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-65248)));
+    // 範囲「3〜7日」「3日〜7日」
+    for(const m of line.matchAll(/([0-9１-９]+)[日]?[〜~−–-]([0-9１-９]+)日/g)){
+      const from=toNum(m[1]), to=toNum(m[2]);
       for(let d=from;d<=to;d++) if(d>=1&&d<=daysIn) nums.push(d);
     }
     // 単発「3日」「15日」
-    const singles = line.matchAll(/([0-9１-９]{1,2})日/g);
-    for(const m of singles){
-      const d=parseInt(m[1].replace(/[１-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-65248)));
+    for(const m of line.matchAll(/([0-9１-９]{1,2})日/g)){
+      const d=toNum(m[1]);
       if(d>=1&&d<=daysIn) nums.push(d);
     }
-    
     if(nums.length===0) return;
-    
-    if(isNG){
-      nums.forEach(d=>unavailable.add(d));
-    } else if(isExceptPattern && isNG){
+
+    // この行の判定：行自体のキーワード → ngMode/okMode → globalNG
+    const isNG = lineNG || ngMode || (globalNG && !lineOK);
+    const isOK = lineOK || okMode || (!globalNG);
+
+    if(isNG && !lineOK){
       nums.forEach(d=>unavailable.add(d));
     } else {
-      // デフォルトは出勤可能として扱う
       nums.forEach(d=>available.add(d));
     }
   });
 
-  // 「以外はOK」パターン：言及されていない日を全部OKにする
+  // 「〜以外はOK」パターン
   if(isExceptPattern && unavailable.size>0 && available.size===0){
     for(let d=1;d<=daysIn;d++){
       if(!unavailable.has(d)) available.add(d);
     }
   }
 
-  // カレンダーに反映
+  // 矛盾解消：unavailableにあるものはavailableから除く
+  unavailable.forEach(d=>available.delete(d));
+
   available.forEach(d=>{s.avail[dk(y,curMonth,d)]=true;});
   unavailable.forEach(d=>{s.avail[dk(y,curMonth,d)]=false;});
   renderCalendar();
@@ -810,7 +824,7 @@ function parseLine(){
   const unList=[...unavailable].sort((a,b)=>a-b);
 
   if(avList.length===0&&unList.length===0){
-    res.innerHTML=`<div class="parse-result twarn">⚠ 日付が読み取れませんでした。<br>「5日、10日、15日はOKです」のように日付を含む形式で入力してください。</div>`;
+    res.innerHTML='<div class="parse-result twarn">⚠ 日付が読み取れませんでした。<br>「5日・10日はOK」や「3日・6日は欠勤希望」のように書いてください。</div>';
     return;
   }
 
@@ -820,6 +834,19 @@ function parseLine(){
     ${unList.length?'<br>出勤不可：<span class="twarn">'+unList.join('・')+'日</span>':''}
     <br><span style="font-size:0.68rem;color:var(--text-muted)">※ 違う場合はカレンダーで手動修正できます</span>
   </div>`;
+}
+
+function toNum(str){
+  return parseInt(str.replace(/[１-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-65248)));
+}
+
+function generateRequestMsg(){
+  const y=curYear, m=curMonth+1;
+  const deadline=15;
+  const msg=`【来月のシフトについて】\nお疲れ様です。Cafe照です。\n\n${y}年${m+1}月の欠勤希望日を\n${m}月${deadline}日（土）までに\nLINEで教えてください🙏\n\n【送り方】\n欠勤したい日付だけ送ってください\n例：5日、13日、20日\n\nよろしくお願いします！`;
+  document.getElementById('requestMsgResult').innerHTML=
+    '<div class="notice-box">'+msg+'</div>'+
+    '<button class="copy-btn" onclick="cpNotice(this,\`'+msg.replace(/\`/g,"'")+'\`)">📋 LINEにコピー</button>';
 }
 
 function generateNotice(){
