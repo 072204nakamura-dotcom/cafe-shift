@@ -766,10 +766,8 @@ function parseLine(){
   const globalOK = okKeywords.test(txt);
 
   // 行ごとに処理
-  const lines = txt.split(/[
-。]/);
-
-  // 欠勤モードかどうかをトラッキング（「欠勤希望」行以降はNG扱い）
+  const lines = txt.split(/\n|。/);
+ // 欠勤モードかどうかをトラッキング（「欠勤希望」行以降はNG扱い）
   let ngMode = false;
   let okMode = false;
 
