@@ -738,27 +738,88 @@ function updatePasteStaff(){
   document.getElementById('pasteStaff').innerHTML=staff.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
 }
 
-async function parseLine(){
+function parseLine(){
   const sid=parseInt(document.getElementById('pasteStaff').value);
   const txt=document.getElementById('pasteTxt').value.trim();
   const res=document.getElementById('parseResult');
   if(!txt){res.innerHTML='<div class="parse-result twarn">テキストを入力してください</div>';return;}
   const s=gs(sid); if(!s) return;
-  res.innerHTML='<div class="parse-result" style="color:var(--text-muted)">🤖 解析中...</div>';
-  const y=curYear,m=curMonth+1,daysIn=new Date(curYear,curMonth+1,0).getDate();
-  const prompt=`あなたはシフト管理AIです。スタッフからのLINEメッセージを読んで${y}年${m}月（${daysIn}日まで）の出勤可能日を抽出してください。
-メッセージ：${txt}
-JSON形式のみで回答（他の文字列不要）：{"available":[1,2,...],"unavailable":[3,4,...],"notes":""}`;
-  try{
-    const resp=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:400,messages:[{role:"user",content:prompt}]})});
-    const data=await resp.json();
-    const raw=data.content.map(i=>i.text||'').join('').replace(/```json|```/g,'').trim();
-    const parsed=JSON.parse(raw);
-    (parsed.available||[]).forEach(d=>{s.avail[dk(y,curMonth,d)]=true;});
-    (parsed.unavailable||[]).forEach(d=>{s.avail[dk(y,curMonth,d)]=false;});
-    renderCalendar();
-    res.innerHTML=`<div class="parse-result"><span class="tok">✓ ${s.name}さんの${m}月を更新</span>\n出勤可：<span class="tok">${(parsed.available||[]).sort((a,b)=>a-b).join('・')}日</span>\n出勤不可：<span class="twarn">${(parsed.unavailable||[]).sort((a,b)=>a-b).join('・')}日</span>${parsed.notes?'\nメモ：'+parsed.notes:''}</div>`;
-  }catch(e){res.innerHTML=`<div class="parse-result twarn">解析エラー: ${e.message}</div>`;}
+  const y=curYear, m=curMonth+1, daysIn=new Date(curYear,curMonth+1,0).getDate();
+
+  // パターンベースの日付抽出（APIなし）
+  const available=new Set();
+  const unavailable=new Set();
+
+  // 「不可・無理・×・休・NG・できない・欠勤」などの否定キーワードを含む行は除外
+  const ngKeywords=/不可|無理|×|NG|ng|できない|出られない|欠勤|休み|休業|だめ|ダメ|だけ無理|だけ不可/;
+  // 「OK・可能・出られる・出勤可・行ける」などの肯定キーワード
+  const okKeywords=/OK|ok|可能|出られる|出勤可|行ける|大丈夫|いけます|でます|出ます/;
+
+  // 行ごとに処理
+  const lines = txt.split(/[\n。、,，]/);
+  
+  // まず全体のトーンを判定（「以外はOK」パターン）
+  const isExceptPattern = /以外|それ以外|他は|ほかは/.test(txt);
+  
+  // 日付を含む行を処理
+  lines.forEach(line => {
+    const isNG = ngKeywords.test(line);
+    const isOK = okKeywords.test(line);
+    
+    // 「〜日〜日」形式や「〜、〜日」形式の複数日抽出
+    const nums = [];
+    // 範囲指定「3日〜7日」「3〜7日」
+    const rangeMatch = line.matchAll(/([0-9１-９]+)[日]?[〜~−–-]([0-9１-９]+)日/g);
+    for(const m of rangeMatch){
+      const from=parseInt(m[1].replace(/[１-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-65248)));
+      const to=parseInt(m[2].replace(/[１-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-65248)));
+      for(let d=from;d<=to;d++) if(d>=1&&d<=daysIn) nums.push(d);
+    }
+    // 単発「3日」「15日」
+    const singles = line.matchAll(/([0-9１-９]{1,2})日/g);
+    for(const m of singles){
+      const d=parseInt(m[1].replace(/[１-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-65248)));
+      if(d>=1&&d<=daysIn) nums.push(d);
+    }
+    
+    if(nums.length===0) return;
+    
+    if(isNG){
+      nums.forEach(d=>unavailable.add(d));
+    } else if(isExceptPattern && isNG){
+      nums.forEach(d=>unavailable.add(d));
+    } else {
+      // デフォルトは出勤可能として扱う
+      nums.forEach(d=>available.add(d));
+    }
+  });
+
+  // 「以外はOK」パターン：言及されていない日を全部OKにする
+  if(isExceptPattern && unavailable.size>0 && available.size===0){
+    for(let d=1;d<=daysIn;d++){
+      if(!unavailable.has(d)) available.add(d);
+    }
+  }
+
+  // カレンダーに反映
+  available.forEach(d=>{s.avail[dk(y,curMonth,d)]=true;});
+  unavailable.forEach(d=>{s.avail[dk(y,curMonth,d)]=false;});
+  renderCalendar();
+
+  const avList=[...available].sort((a,b)=>a-b);
+  const unList=[...unavailable].sort((a,b)=>a-b);
+
+  if(avList.length===0&&unList.length===0){
+    res.innerHTML=`<div class="parse-result twarn">⚠ 日付が読み取れませんでした。<br>「5日、10日、15日はOKです」のように日付を含む形式で入力してください。</div>`;
+    return;
+  }
+
+  res.innerHTML=`<div class="parse-result">
+    <span class="tok">✓ ${s.name}さんの${m}月を更新しました</span>
+    ${avList.length?'<br>出勤可：<span class="tok">'+avList.join('・')+'日</span>'  :''}
+    ${unList.length?'<br>出勤不可：<span class="twarn">'+unList.join('・')+'日</span>':''}
+    <br><span style="font-size:0.68rem;color:var(--text-muted)">※ 違う場合はカレンダーで手動修正できます</span>
+  </div>`;
 }
 
 function generateNotice(){
