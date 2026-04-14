@@ -341,6 +341,11 @@ body { font-family: 'Noto Sans JP', sans-serif; background: var(--bg); color: va
 
 <!-- STAFF -->
 <div class="page" id="page-staff">
+  <div class="month-nav" style="margin-bottom:10px">
+    <button class="nav-btn" onclick="changeMonth(-1);renderStaffCards()">◀</button>
+    <div class="month-title" id="staffMonthTitle" style="font-size:0.9rem"></div>
+    <button class="nav-btn" onclick="changeMonth(1);renderStaffCards()">▶</button>
+  </div>
   <div class="staff-cards" id="staffCards"></div>
   <button class="add-btn" onclick="addStaff()">＋ スタッフを追加</button>
 </div>
@@ -420,16 +425,7 @@ let curMonth = new Date().getMonth();
 const gasUrl = 'https://script.google.com/macros/s/AKfycbzVretuyWf7A5QZEdQM8D2gbHi24t_NWm5U1U00VmXqjziSNi4EWLqnBnefE9c-KjKS/exec';
 let modalKey = null;
 
-// Demo avail
-const now = new Date();
-staff.forEach((s,si)=>{
-  for(let d=1;d<=28;d++){
-    if((d+si)%7!==0&&(d+si)%13!==0){
-      const key=dk(now.getFullYear(),now.getMonth(),d);
-      s.avail[key]=true;
-    }
-  }
-});
+// デフォルトは全日出勤可（avail[key]===falseの日だけ出勤不可）
 
 // ============================================================
 // HELPERS
@@ -494,7 +490,7 @@ function renderCalendar(){
     const data=dd(key);
     const dow=new Date(y,m,d).getDay();
     const isOpen=data.open;
-    const avail=staff.filter(s=>s.avail[key]);
+    const avail=staff.filter(s=>s.avail[key]!==false);
     const {missing,warnP}=checkRoles(key,dow);
     const timeIss=isOpen?checkTime(key):[];
     const isMiss=isOpen&&missing.length>0;
@@ -566,7 +562,7 @@ function openModal(key,d){
 
 function renderModalBody(key,d,dow){
   const data=dd(key);
-  const avail=staff.filter(s=>s.avail[key]);
+  const avail=staff.filter(s=>s.avail[key]!==false);
   const unavail=staff.filter(s=>!s.avail[key]);
 
   let html='';
@@ -1034,6 +1030,79 @@ function toggleRoleActive(staffId, rid, btn){
   if(el) el.innerHTML=buildRolePrioHTML(s);
 }
 
+// Build availability calendar for staff card
+function buildAvailCal(s){
+  const y=curYear, m=curMonth;
+  const daysIn=new Date(y,m+1,0).getDate();
+  const firstDow=new Date(y,m,1).getDay(); // 0=sun
+  let html='';
+  // Month label
+  html+=`<div style="width:100%;font-size:0.65rem;color:var(--text-muted);margin-bottom:2px">${y}年${m+1}月</div>`;
+  // Day labels
+  const DLABELS=['日','月','火','水','木','金','土'];
+  DLABELS.forEach((d,i)=>{
+    html+=`<div style="width:28px;height:18px;font-size:0.58rem;text-align:center;color:${i===0?'var(--red)':i===6?'var(--blue)':'var(--text-muted)'}">${d}</div>`;
+  });
+  // Empty cells before first day
+  for(let i=0;i<firstDow;i++){
+    html+=`<div style="width:28px;height:28px"></div>`;
+  }
+  // Days
+  for(let d=1;d<=daysIn;d++){
+    const key=dk(y,m,d);
+    const isAvail=s.avail[key]!==false; // default to available
+    const dow=new Date(y,m,d).getDay();
+    const isHol=JP_HOLIDAYS.has(key);
+    const isSun=dow===0, isSat=dow===6;
+    const textColor=isAvail?'#fff':(isSun||isHol?'var(--red)':isSat?'var(--blue)':'var(--text-muted)');
+    const bg=isAvail?'var(--green)':'var(--surface3)';
+    html+=`<div onclick="toggleAvail(${s.id},'${key}',this)"
+      style="width:28px;height:28px;border-radius:5px;background:${bg};color:${textColor};font-size:0.68rem;font-family:'DM Mono',monospace;display:flex;align-items:center;justify-content:center;cursor:pointer;font-weight:500;transition:all .15s">${d}</div>`;
+  }
+  return html;
+}
+
+function toggleAvail(staffId, key, el){
+  const s=gs(staffId); if(!s) return;
+  const cur=s.avail[key]!==false;
+  s.avail[key]=!cur;
+  const dow=new Date(key).getDay();
+  const isHol=JP_HOLIDAYS.has(key);
+  const isSun=dow===0, isSat=dow===6;
+  if(!cur){
+    el.style.background='var(--green)';
+    el.style.color='#fff';
+  } else {
+    el.style.background='var(--surface3)';
+    el.style.color=isSun||isHol?'var(--red)':isSat?'var(--blue)':'var(--text-muted)';
+  }
+}
+
+function setAllAvail(staffId, val){
+  const s=gs(staffId); if(!s) return;
+  const y=curYear, m=curMonth;
+  const daysIn=new Date(y,m+1,0).getDate();
+  for(let d=1;d<=daysIn;d++){
+    s.avail[dk(y,m,d)]=val;
+  }
+  const el=document.getElementById('avail-cal-'+staffId);
+  if(el) el.innerHTML=buildAvailCal(s);
+  renderCalendar();
+}
+
+function clearAvail(staffId){
+  // 明示設定をクリア → デフォルト（全日出勤可）に戻す
+  const s=gs(staffId); if(!s) return;
+  const y=curYear, m=curMonth;
+  const daysIn=new Date(y,m+1,0).getDate();
+  for(let d=1;d<=daysIn;d++){
+    delete s.avail[dk(y,m,d)];
+  }
+  const el=document.getElementById('avail-cal-'+staffId);
+  if(el) el.innerHTML=buildAvailCal(s);
+  renderCalendar();
+}
+
 // helper: count assigned days in current month for a staff
 function countAssignedDays(staffId){
   const y=curYear, m=curMonth;
@@ -1115,6 +1184,19 @@ function renderStaffCards(){
       <label class="flabel">担当できる役割と優先順位（ドラッグで並び替え・タップで有効/無効）</label>
       <div class="role-prio-list" id="rp-${s.id}" style="display:flex;flex-direction:column;gap:4px;margin-top:4px">
         ${buildRolePrioHTML(s)}
+      </div>
+      <div style="margin-top:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+          <label class="flabel" style="margin:0">📅 出勤可能日（タップで切替）</label>
+          <div style="display:flex;gap:4px">
+            <button onclick="setAllAvail(${s.id},true)" style="font-size:0.62rem;padding:2px 7px;border-radius:4px;border:1px solid var(--green);color:var(--green);background:var(--surface);cursor:pointer">全日OK</button>
+            <button onclick="setAllAvail(${s.id},false)" style="font-size:0.62rem;padding:2px 7px;border-radius:4px;border:1px solid var(--red);color:var(--red);background:var(--surface);cursor:pointer">全日NG</button>
+            <button onclick="clearAvail(${s.id})" style="font-size:0.62rem;padding:2px 7px;border-radius:4px;border:1px solid var(--border);color:var(--text-muted);background:var(--surface);cursor:pointer">リセット</button>
+          </div>
+        </div>
+        <div id="avail-cal-${s.id}" style="display:flex;flex-wrap:wrap;gap:3px;margin-top:4px">
+          ${buildAvailCal(s)}
+        </div>
       </div>
     `;
     el.appendChild(card);
@@ -1261,7 +1343,7 @@ function renderWeeklyView(){
         html+=`<td class="${cls}"><span class="name-chip" style="background:${role.color}22;color:${role.color};border:1px solid ${role.color}55">${isFixedWk?'🔒':''}${s?s.name.split(' ')[0]:'?'}</span><div style="font-size:0.6rem;color:var(--text-muted);font-family:'DM Mono',monospace;margin-top:2px">${from.slice(0,5)}〜${to.slice(0,5)}</div></td>`;
       } else {
         // show if anyone available can do this role
-        const canDo = staff.filter(s=>s.roles.includes(role.id)&&s.avail[key]);
+        const canDo = staff.filter(s=>s.roles.includes(role.id)&&s.avail[key]!==false);
         html+=`<td class="${cls}" style="background:${role.must&&canDo.length===0?'rgba(192,48,48,0.07)':''}">`+
           `<span style="color:${role.must?'var(--red)':'var(--border)'};font-size:0.8rem">—</span>`+
           `${canDo.length>0?'<div style="font-size:0.58rem;color:var(--text-muted)">候補'+canDo.length+'人</div>':role.must?'<div style="font-size:0.58rem;color:var(--red)">要確保</div>':''}`+
@@ -1303,7 +1385,7 @@ function renderWeeklyView(){
         const from=effFrom(s,key),to=effTo(s,key);
         const isFixed=s.fixedRole&&s.fixedRole===asgn.role;
         html2+=`<td class="${cls}"><span class="role-dot" style="background:${ro?ro.color:'#888'}">${asgn.role}</span>${isFixed?'<span style="font-size:0.5rem;color:var(--accent)">🔒</span>':''}<div style="font-size:0.58rem;color:var(--text-muted);font-family:'DM Mono',monospace;margin-top:1px">${from.slice(0,5)}〜${to.slice(0,5)}</div></td>`;
-      } else if(s.avail[key]){
+      } else if(s.avail[key]!==false){
         html2+=`<td class="${cls}"><span class="avail-mark">出勤可</span></td>`;
       } else {
         html2+=`<td class="${cls}"><span class="off-mark">✕</span></td>`;
@@ -1323,7 +1405,10 @@ function showPage(name,btn){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
   if(btn)btn.classList.add('active');
-  if(name==='staff'){renderStaffCards();setTimeout(fillWeekCounts,50);}
+  if(name==='staff'){
+    document.getElementById('staffMonthTitle').textContent=curYear+'年'+(curMonth+1)+'月　出勤可能日設定';
+    renderStaffCards();setTimeout(fillWeekCounts,50);
+  }
   if(name==='weekly') renderWeeklyView();
   if(name==='calendar')renderCalendar();
 }
