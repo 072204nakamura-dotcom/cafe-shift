@@ -741,14 +741,21 @@ function parseLine(){
   const s=gs(sid);if(!s)return;
   const y=curY,m=curM+1,daysIn=new Date(curY,curM+1,0).getDate();
   const unav=new Set();
+  // 数字を全部抽出（「日」なしの数字、「日」付き、範囲指定すべて対応）
   const lines2=txt.split('\n');
   lines2.forEach(line=>{
-    for(const match of line.matchAll(/([0-9][0-9]?)[日]?[~〜][~〜]?([0-9][0-9]?)日/g)){
-      const from=parseInt(match[1]),to=parseInt(match[2]);
+    // 範囲「3〜7」「3-7」「3日〜7日」
+    for(const m of line.matchAll(/([0-9]{1,2})[日]?\s*[〜~\-－–]\s*([0-9]{1,2})日?/g)){
+      const from=parseInt(m[1]),to=parseInt(m[2]);
       for(let d=from;d<=to;d++)if(d>=1&&d<=daysIn)unav.add(d);
     }
-    for(const match of line.matchAll(/([0-9]{1,2})日/g)){
-      const d=parseInt(match[1]);if(d>=1&&d<=daysIn)unav.add(d);
+    // 「3日」「15日」付き
+    for(const m of line.matchAll(/([0-9]{1,2})日/g)){
+      const d=parseInt(m[1]);if(d>=1&&d<=daysIn)unav.add(d);
+    }
+    // 数字だけ「1.3.7」「1,3,7」「1 3 7」「14 16」（前後に文字がない1〜31の数字）
+    for(const m of line.matchAll(/(?<![0-9])([1-9]|[12][0-9]|3[01])(?![0-9日])/g)){
+      const d=parseInt(m[1]);if(d>=1&&d<=daysIn)unav.add(d);
     }
   });
   if(!unav.size){res.innerHTML='<div class="pres terr">⚠ 日付が読み取れませんでした。<br>「5日、13日」のように日付を含む形式で入力してください。</div>';return;}
