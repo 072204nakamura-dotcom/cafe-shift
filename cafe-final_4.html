@@ -544,9 +544,7 @@ function renderModalBody(key,d,dow){
     const overH=wkhMax!=null&&isWkHol(key)&&wkhCnt>=wkhMax;
     const isPref=(s.prefDays||[]).includes(dow);
     const rowStyle=overM||overW||overH?'border:1px solid rgba(192,48,48,.4)':isPref?'border:1px solid rgba(184,98,42,.4)':'';
-    // Auto-apply fixedRole
-    if(s.fixedRole&&asgn&&!asgn.role){asgn.role=s.fixedRole;}
-    else if(s.fixedRole&&!asgn){data.assignments.push({staffId:s.id,role:s.fixedRole,timeFrom:null,timeTo:null});}
+
     const curRole=(data.assignments.find(a=>a.staffId===s.id)||{}).role||'';
     const ordRoles=[...(s.rolePrio||s.roles||[])].filter(r=>(s.roles||[]).includes(r));
 
@@ -555,7 +553,7 @@ function renderModalBody(key,d,dow){
       <div>
         <div class="aname">
 
-          ${s.fixedRole?`<span style="font-size:.58rem;background:rgba(184,98,42,.2);color:var(--accent);padding:1px 5px;border-radius:8px">🔒${s.fixedRole}</span>`:''}
+
           ${isPref?'<span style="font-size:.58rem;background:rgba(184,98,42,.12);color:var(--accent);padding:1px 5px;border-radius:8px">希望曜日</span>':''}
           ${s.name}
         </div>
@@ -575,7 +573,10 @@ function renderModalBody(key,d,dow){
       </div>
       <select class="rsel" onchange="setRole('${key}',${s.id},this.value)">
         <option value="" ${!curRole?'selected':''}>― 休み</option>
-        ${ordRoles.map((r,i)=>{const ro=ROLES.find(x=>x.id===r);return `<option value="${r}" ${curRole===r?'selected':''}>${s.fixedRole===r?'🔒':i+1+'位'} ${r}：${ro?ro.name:r}</option>`;}).join('')}
+        ${ROLES.map(r=>{
+          const canDo=(s.roles||[]).includes(r.id);
+          return `<option value="${r.id}" ${curRole===r.id?'selected':''} ${!canDo?'disabled style="color:#ccc"':''}>${r.id}：${r.name}${!canDo?' (担当外)':''}</option>`;
+        }).join('')}
       </select>
     </div>`;
   });
@@ -628,9 +629,14 @@ function buildGantt(key){
 
 function setRole(key,staffId,role){
   const data=dd(key);
-  let a=data.assignments.find(x=>x.staffId===staffId);
-  if(!a){a={staffId,role:'',timeFrom:null,timeTo:null};data.assignments.push(a);}
-  a.role=role;
+  if(!role){
+    // 休み選択 → アサインを削除
+    data.assignments=data.assignments.filter(x=>x.staffId!==staffId);
+  } else {
+    let a=data.assignments.find(x=>x.staffId===staffId);
+    if(!a){a={staffId,role:'',timeFrom:null,timeTo:null};data.assignments.push(a);}
+    a.role=role;
+  }
   const dot=document.getElementById('dot-'+staffId);
   if(dot){dot.className='adot '+(role?'on':'');}
   renderCal();
@@ -998,14 +1004,7 @@ function renderStaff(){
         <input class="scname" value="${s.name}" onchange="updSt(${s.id},'name',this.value);renderCal()">
         <button class="delbtn" onclick="delStaff(${s.id})">削除</button>
       </div>
-      <div style="background:var(--surface2);border-radius:7px;padding:7px 10px;margin-bottom:8px;display:flex;align-items:center;gap:8px">
-        <span style="font-size:.68rem;color:var(--muted);white-space:nowrap">🔒 固定役割</span>
-        <select class="fsel" onchange="updSt(${s.id},'fixedRole',this.value||null)">
-          <option value="" ${!s.fixedRole?'selected':''}>固定なし</option>
-          ${ROLES.map(r=>`<option value="${r.id}" ${s.fixedRole===r.id?'selected':''}>${r.id}：${r.name}</option>`).join('')}
-        </select>
-        ${s.fixedRole?`<span style="font-size:.62rem;color:var(--accent)">常に${s.fixedRole}</span>`:''}
-      </div>
+
       <div class="sgrid">
 
         <div><label class="flbl">月最大日数</label><input type="number" class="finput" value="${max}" min="1" max="31" onchange="updSt(${s.id},'maxDays',parseInt(this.value)||20)"></div>
