@@ -185,10 +185,16 @@ body{font-family:'Noto Sans JP',sans-serif;background:#f5f0e8;color:#1e1810;min-
 .rdot{display:inline-block;width:22px;height:22px;border-radius:50%;font-size:.6rem;font-weight:700;line-height:22px;text-align:center;color:#fff;}
 
 @media print{
-  .hdr .sync-btn,.tabs,.nbtn,.dtoggle{display:none!important;}
-  .page{display:block!important;}
-  .ov{display:none!important;}
-  body{background:#fff;}
+  .hdr,.tabs,.ov{display:none!important;}
+  .page{display:none!important;}
+  .page.print-target{display:block!important;}
+  body{background:#fff;margin:0;padding:8px;}
+  /* マトリクス表の印刷調整 */
+  #monthlyBody table{font-size:9pt;min-width:unset!important;}
+  #monthlyBody td,#monthlyBody th{padding:2px 2px!important;min-width:18px!important;}
+  #monthlyBody{overflow:visible!important;}
+  /* 横長レイアウト */
+  @page{size:A4 landscape;margin:10mm;}
 }
 </style>
 </head>
@@ -207,6 +213,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#f5f0e8;color:#1e1810;min-
   <button class="tab" onclick="showPage('weekly',this)">📋 役割一覧</button>
   <button class="tab" onclick="showPage('line',this)">💬 LINE</button>
   <button class="tab" onclick="showPage('history',this)">📂 欠勤履歴</button>
+  <button class="tab" onclick="showPage('monthly',this)">📊 月間出勤表</button>
   <button class="tab" onclick="showPage('staff',this)">👤 スタッフ</button>
   <button class="tab" onclick="showPage('settings',this)">⚙ 設定</button>
 </div>
@@ -283,6 +290,21 @@ body{font-family:'Noto Sans JP',sans-serif;background:#f5f0e8;color:#1e1810;min-
   </div>
   <div class="scards" id="staffCards"></div>
   <button class="addbtn" onclick="addStaff()">＋ スタッフを追加</button>
+</div>
+
+<!-- MONTHLY REPORT -->
+<div class="page" id="page-monthly">
+  <div class="mnav" style="margin-bottom:10px">
+    <button class="nbtn" onclick="chMonth(-1);renderMonthly()">◀</button>
+    <div class="mtitle" id="monthlyTitle" style="font-size:.85rem"></div>
+    <button class="nbtn" onclick="chMonth(1);renderMonthly()">▶</button>
+  </div>
+  <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+    <button class="nbtn" onclick="setMonthlyView('matrix')" id="btnMatrix" style="font-size:.72rem;background:#1e1810;color:#fff;border-color:#1e1810">出勤マトリクス</button>
+    <button class="nbtn" onclick="setMonthlyView('unused')" id="btnUnused" style="font-size:.72rem">未出勤スタッフ</button>
+    <button class="nbtn" onclick="printMonthly()" style="font-size:.72rem;background:var(--green);color:#fff;border-color:var(--green);margin-left:auto">🖨 印刷・PDF</button>
+  </div>
+  <div id="monthlyBody"></div>
 </div>
 
 <!-- SETTINGS -->
@@ -1117,6 +1139,243 @@ async function loadFromGas(){
 }
 
 // ============================================================
+// MONTHLY REPORT
+// ============================================================
+let monthlyView = 'matrix';
+
+function printMonthly(){
+  if(monthlyView!=='matrix') setMonthlyView('matrix');
+  // 月間出勤表ページだけ印刷対象に
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('print-target'));
+  document.getElementById('page-monthly').classList.add('print-target');
+  setTimeout(()=>{
+    window.print();
+    // 印刷後にクラスを戻す
+    setTimeout(()=>{
+      document.querySelectorAll('.page').forEach(p=>p.classList.remove('print-target'));
+    },1000);
+  },300);
+}
+
+function setMonthlyView(v){
+  monthlyView = v;
+  document.getElementById('btnMatrix').style.background = v==='matrix'?'#1e1810':'';
+  document.getElementById('btnMatrix').style.color = v==='matrix'?'#fff':'';
+  document.getElementById('btnMatrix').style.borderColor = v==='matrix'?'#1e1810':'var(--border)';
+  document.getElementById('btnUnused').style.background = v==='unused'?'#1e1810':'';
+  document.getElementById('btnUnused').style.color = v==='unused'?'#fff':'';
+  document.getElementById('btnUnused').style.borderColor = v==='unused'?'#1e1810':'var(--border)';
+  renderMonthly();
+}
+
+function renderMonthly(){
+  const y=curY, m=curM;
+  const daysIn=new Date(y,m+1,0).getDate();
+  document.getElementById('monthlyTitle').textContent=`${y}年${m+1}月　月間出勤表`;
+
+  if(monthlyView==='matrix'){
+    renderMonthlyMatrix(y,m,daysIn);
+  } else {
+    renderUnused(y,m,daysIn);
+  }
+}
+
+function renderMonthlyMatrix(y,m,daysIn){
+  const DOW=['日','月','火','水','木','金','土'];
+  let h='';
+
+  // 月間サマリー
+  const openDays=[];
+  for(let d=1;d<=daysIn;d++){
+    const key=dk(y,m,d);
+    if(dd(key).open) openDays.push(d);
+  }
+
+  h+=`<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:12px">`;
+  h+=`<div style="font-size:.72rem;color:var(--muted);margin-bottom:8px">営業日：${openDays.length}日　スタッフ：${staff.length}人</div>`;
+
+  // スタッフ別出勤合計
+  h+=`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">`;
+  staff.forEach(s=>{
+    const cnt=countDays(s.id);
+    const max=s.maxDays||20;
+    const pct=Math.round(cnt/max*100);
+    const col=pct>=100?'var(--red)':pct>=80?'var(--yellow)':'var(--green)';
+    h+=`<div style="background:var(--surface2);border-radius:6px;padding:5px 8px;font-size:.68rem">
+      <div style="font-weight:500">${s.name.split(' ')[0]}</div>
+      <div style="color:${col};font-family:'DM Mono',monospace;font-weight:700">${cnt}日<span style="color:var(--muted);font-weight:400">/${max}</span></div>
+    </div>`;
+  });
+  h+='</div></div>';
+
+  // マトリクス表（スタッフ×日付）
+  h+=`<div style="overflow-x:auto">`;
+  h+=`<table style="border-collapse:collapse;font-size:.65rem;min-width:${daysIn*28+120}px;width:100%">`;
+
+  // ヘッダー行（日付）
+  h+=`<thead><tr>`;
+  h+=`<th style="background:var(--surface2);padding:5px 8px;text-align:left;position:sticky;left:0;min-width:90px;border:1px solid var(--border)">スタッフ</th>`;
+  for(let d=1;d<=daysIn;d++){
+    const key=dk(y,m,d);
+    const dow=new Date(y,m,d).getDay();
+    const isH=JP_HOL.has(key);
+    const isOpen=dd(key).open;
+    const isSu=dow===0, isSa=dow===6;
+    const col=isSu||isH?'var(--red)':isSa?'var(--blue)':'inherit';
+    const bg=isOpen?'var(--surface2)':'rgba(0,0,0,.03)';
+    h+=`<th style="background:${bg};padding:3px 2px;text-align:center;border:1px solid var(--border);min-width:26px;color:${col}">`;
+    h+=`${d}<br><span style="font-size:.5rem">${DOW[dow]}${isH?'祝':''}</span>`;
+    h+=`</th>`;
+  }
+  // 合計列
+  h+=`<th style="background:var(--surface2);padding:5px 4px;text-align:center;border:1px solid var(--border);min-width:40px">合計</th>`;
+  h+=`</tr></thead><tbody>`;
+
+  // 各スタッフ行
+  staff.forEach(s=>{
+    let rowTotal=0;
+    h+=`<tr>`;
+    h+=`<td style="background:var(--surface2);padding:5px 8px;font-weight:500;position:sticky;left:0;border:1px solid var(--border);white-space:nowrap">${s.name}</td>`;
+    for(let d=1;d<=daysIn;d++){
+      const key=dk(y,m,d);
+      const data=dd(key);
+      const dow=new Date(y,m,d).getDay();
+      const isOpen=data.open;
+      const asgn=data.assignments.find(a=>a.staffId===s.id&&a.role);
+      const avail=isAvail(s,key);
+      const isSu=dow===0,isSa=dow===6,isH=JP_HOL.has(key);
+      const wkend=isSu||isSa||isH;
+
+      let cell='', bg='', color='';
+      if(!isOpen){
+        bg='rgba(0,0,0,.03)'; cell='';
+      } else if(asgn){
+        rowTotal++;
+        const ro=ROLES.find(r=>r.id===asgn.role);
+        bg=ro?ro.color+'22':'rgba(58,138,90,.15)';
+        color=ro?ro.color:'var(--green)';
+        cell=`<span style="font-family:'DM Mono',monospace;font-weight:700;color:${color}">${asgn.role}</span>`;
+      } else if(!avail){
+        bg='rgba(192,48,48,.06)';
+        cell=`<span style="color:var(--red);font-size:.7rem">✕</span>`;
+      } else {
+        bg=wkend?'rgba(0,0,0,.02)':'';
+        cell=`<span style="color:var(--border)">—</span>`;
+      }
+      h+=`<td style="text-align:center;padding:3px 2px;border:1px solid var(--border);background:${bg}">${cell}</td>`;
+    }
+    const max=s.maxDays||20;
+    const col=rowTotal>=max?'var(--red)':rowTotal>=max*0.8?'var(--yellow)':'var(--green)';
+    h+=`<td style="text-align:center;padding:3px 4px;border:1px solid var(--border);background:var(--surface2);font-family:'DM Mono',monospace;font-weight:700;color:${col}">${rowTotal}</td>`;
+    h+=`</tr>`;
+  });
+
+  // 下部：各日の出勤人数行
+  h+=`<tr style="background:#1e1810">`;
+  h+=`<td style="padding:5px 8px;color:#f5f0e8;font-weight:500;position:sticky;left:0;background:#1e1810;border:1px solid #333">出勤人数</td>`;
+  let totalCost=0;
+  for(let d=1;d<=daysIn;d++){
+    const key=dk(y,m,d);
+    const data=dd(key);
+    if(!data.open){h+=`<td style="border:1px solid #333;text-align:center;color:#555">—</td>`;continue;}
+    const cnt=data.assignments.filter(a=>a.role).length;
+    const col=cnt>=4?'#7ff0a0':cnt>=2?'#f0c87f':'#f08080';
+    h+=`<td style="text-align:center;border:1px solid #333;color:${col};font-family:'DM Mono',monospace;font-weight:700">${cnt}</td>`;
+  }
+  h+=`<td style="border:1px solid #333;text-align:center;color:#f5f0e8;font-family:'DM Mono',monospace">${staff.reduce((s2,s)=>s2+countDays(s.id),0)}</td>`;
+  h+=`</tr>`;
+
+  h+=`</tbody></table></div>`;
+
+  // 凡例
+  h+=`<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;font-size:.65rem;color:var(--muted)">`;
+  ROLES.forEach(r=>h+=`<span><span style="display:inline-block;width:16px;height:16px;border-radius:3px;background:${r.color}33;color:${r.color};font-family:'DM Mono',monospace;font-weight:700;text-align:center;line-height:16px;font-size:.6rem">${r.id}</span> ${r.name}</span>`);
+  h+=`<span><span style="color:var(--red)">✕</span> 欠勤希望</span>`;
+  h+=`<span><span style="color:var(--border)">—</span> 未アサイン（出勤可）</span>`;
+  h+=`</div>`;
+
+  document.getElementById('monthlyBody').innerHTML=h;
+}
+
+function renderUnused(y,m,daysIn){
+  // 営業日ごとに「出勤可能だが未アサイン」のスタッフを抽出
+  let h='';
+
+  // スタッフごとに未出勤の出勤可能日をまとめる
+  h+=`<div style="font-size:.75rem;font-weight:700;color:var(--accent);margin-bottom:10px">出勤可能だが未アサインのスタッフ一覧</div>`;
+
+  // まず日別ビュー
+  h+=`<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:12px">`;
+  h+=`<div style="font-size:.75rem;font-weight:700;color:var(--accent);margin-bottom:8px">📅 日別：アサインできるスタッフ</div>`;
+
+  let hasAny=false;
+  for(let d=1;d<=daysIn;d++){
+    const key=dk(y,m,d);
+    const data=dd(key);
+    if(!data.open) continue;
+
+    const assigned=new Set(data.assignments.filter(a=>a.role).map(a=>a.staffId));
+    const unused=staff.filter(s=>isAvail(s,key)&&!assigned.has(s.id));
+    if(!unused.length) continue;
+
+    hasAny=true;
+    const dow=new Date(y,m,d).getDay();
+    const DOW=['日','月','火','水','木','金','土'];
+    const isH=JP_HOL.has(key);
+    const isSu=dow===0,isSa=dow===6;
+    const col=isSu||isH?'var(--red)':isSa?'var(--blue)':'inherit';
+
+    h+=`<div style="display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)">`;
+    h+=`<div style="min-width:55px;font-family:'DM Mono',monospace;font-size:.72rem;font-weight:700;color:${col}">${m+1}/${d}（${DOW[dow]}${isH?'祝':''}）</div>`;
+    h+=`<div style="display:flex;flex-wrap:wrap;gap:4px;flex:1">`;
+    unused.forEach(s=>{
+      const roles=(s.roles||[]).join('/');
+      h+=`<span style="background:var(--surface2);border-radius:6px;padding:2px 8px;font-size:.68rem">
+        ${s.name.split(' ')[0]}
+        <span style="font-family:'DM Mono',monospace;color:var(--muted);font-size:.6rem">${roles}</span>
+      </span>`;
+    });
+    h+=`</div></div>`;
+  }
+  if(!hasAny) h+=`<div style="text-align:center;padding:20px;color:var(--muted);font-size:.78rem">全員アサイン済みです🎉</div>`;
+  h+=`</div>`;
+
+  // スタッフ別ビュー
+  h+=`<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 14px">`;
+  h+=`<div style="font-size:.75rem;font-weight:700;color:var(--accent);margin-bottom:8px">👤 スタッフ別：出勤可能だが未アサインの日</div>`;
+
+  staff.forEach(s=>{
+    const unusedDays=[];
+    for(let d=1;d<=daysIn;d++){
+      const key=dk(y,m,d);
+      const data=dd(key);
+      if(!data.open) continue;
+      const assigned=data.assignments.find(a=>a.staffId===s.id&&a.role);
+      if(!assigned&&isAvail(s,key)) unusedDays.push(d);
+    }
+    if(!unusedDays.length) return;
+
+    h+=`<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">`;
+    h+=`<div style="min-width:90px;font-weight:500;font-size:.75rem">${s.name}</div>`;
+    h+=`<div style="display:flex;flex-wrap:wrap;gap:3px;flex:1">`;
+    unusedDays.forEach(d=>{
+      const key=dk(y,m,d);
+      const dow=new Date(y,m,d).getDay();
+      const isH=JP_HOL.has(key);
+      const col=dow===0||isH?'rgba(192,48,48,.15)':dow===6?'rgba(40,96,168,.1)':'var(--surface2)';
+      const tc=dow===0||isH?'var(--red)':dow===6?'var(--blue)':'var(--muted)';
+      h+=`<span style="background:${col};color:${tc};border-radius:4px;padding:1px 6px;font-size:.68rem;font-family:'DM Mono',monospace">${d}</span>`;
+    });
+    h+=`</div>`;
+    h+=`<div style="font-size:.68rem;color:var(--muted);white-space:nowrap">${unusedDays.length}日間</div>`;
+    h+=`</div>`;
+  });
+  h+=`</div>`;
+
+  document.getElementById('monthlyBody').innerHTML=h;
+}
+
+// ============================================================
 // TABS & INIT
 // ============================================================
 function showPage(name,btn){
@@ -1127,6 +1386,7 @@ function showPage(name,btn){
   if(name==='staff')renderStaff();
   if(name==='weekly')renderWeekly();
   if(name==='history')renderHistory();
+  if(name==='monthly'){monthlyView='matrix';setMonthlyView('matrix');}
   if(name==='cal')renderCal();
 }
 
