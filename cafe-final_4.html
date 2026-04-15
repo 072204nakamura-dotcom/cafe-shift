@@ -206,6 +206,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#f5f0e8;color:#1e1810;min-
   <button class="tab on" onclick="showPage('cal',this)">📅 月間</button>
   <button class="tab" onclick="showPage('weekly',this)">📋 役割一覧</button>
   <button class="tab" onclick="showPage('line',this)">💬 LINE</button>
+  <button class="tab" onclick="showPage('history',this)">📂 欠勤履歴</button>
   <button class="tab" onclick="showPage('staff',this)">👤 スタッフ</button>
   <button class="tab" onclick="showPage('settings',this)">⚙ 設定</button>
 </div>
@@ -261,6 +262,16 @@ body{font-family:'Noto Sans JP',sans-serif;background:#f5f0e8;color:#1e1810;min-
     <button class="pbtn g" onclick="genNotice()">前日通知を生成</button>
     <div id="noticeRes"></div>
   </div>
+</div>
+
+<!-- HISTORY -->
+<div class="page" id="page-history">
+  <div class="mnav" style="margin-bottom:10px">
+    <button class="nbtn" onclick="chMonth(-1);renderHistory()">◀</button>
+    <div class="mtitle" id="histTitle" style="font-size:.85rem"></div>
+    <button class="nbtn" onclick="chMonth(1);renderHistory()">▶</button>
+  </div>
+  <div id="histBody"></div>
 </div>
 
 <!-- STAFF -->
@@ -518,11 +529,7 @@ function renderModalBody(key,d,dow){
   h+=buildGantt(key);
 
   // Sort avail by priority
-  const sorted=[...avail].sort((a,b)=>{
-    const fa=a.flag==='priority'?0:1,fb=b.flag==='priority'?0:1;
-    if(fa!==fb)return fa-fb;
-    return (a.priority||3)-(b.priority||3);
-  });
+  const sorted=[...avail];
 
   h+=`<div class="albl">出勤可能なスタッフ（役割・時刻を設定）</div><div class="arows">`;
   sorted.forEach(s=>{
@@ -547,7 +554,7 @@ function renderModalBody(key,d,dow){
       <div class="adot ${isOn?'on':''}" id="dot-${s.id}"></div>
       <div>
         <div class="aname">
-          ${s.flag==='priority'?'<span style="font-size:.58rem;background:var(--accent);color:#fff;padding:1px 5px;border-radius:8px">★優先</span>':''}
+
           ${s.fixedRole?`<span style="font-size:.58rem;background:rgba(184,98,42,.2);color:var(--accent);padding:1px 5px;border-radius:8px">🔒${s.fixedRole}</span>`:''}
           ${isPref?'<span style="font-size:.58rem;background:rgba(184,98,42,.12);color:var(--accent);padding:1px 5px;border-radius:8px">希望曜日</span>':''}
           ${s.name}
@@ -703,9 +710,9 @@ function renderWeekly(){
   h2+='<table class="wtable"><thead><tr><th class="role-col" style="text-align:left;padding-left:10px">スタッフ</th>';
   dates.forEach((d,i)=>{h2+=`<th>${fmt(d)} ${DOW2[i]}</th>`;});
   h2+='</tr></thead><tbody>';
-  const sorted=[...staff].sort((a,b)=>(a.flag==='priority'?0:1)-(b.flag==='priority'?0:1)||((a.priority||3)-(b.priority||3)));
+  const sorted=[...staff];
   sorted.forEach(s=>{
-    h2+=`<tr><td style="text-align:left;padding-left:10px;font-size:.72rem;font-weight:500">${s.flag==='priority'?'★ ':''}${s.name}</td>`;
+    h2+=`<tr><td style="text-align:left;padding-left:10px;font-size:.72rem;font-weight:500">${s.name}</td>`;
     dates.forEach(d=>{
       const key=dk(d.getFullYear(),d.getMonth(),d.getDate());
       const data=dd(key);
@@ -759,10 +766,124 @@ function parseLine(){
     }
   });
   if(!unav.size){res.innerHTML='<div class="pres terr">⚠ 日付が読み取れませんでした。<br>「5日、13日」のように日付を含む形式で入力してください。</div>';return;}
-  unav.forEach(d=>{s.avail[dk(y,curM,d)]=false;});
+  const unavArr=[...unav].sort((a,b)=>a-b);
+  unavArr.forEach(d=>{s.avail[dk(y,curM,d)]=false;});
+  saveHistory(s.id, s.name, unavArr, document.getElementById('pasteTxt').value.trim());
   renderCal();
-  res.innerHTML=`<div class="pres"><span class="tok">✓ ${s.name}さんの欠勤日を登録しました</span><br>欠勤：<span style="color:var(--red)">${[...unav].sort((a,b)=>a-b).join('・')}日</span><br><span style="font-size:.65rem;color:var(--muted)">※違う場合はスタッフタブのカレンダーで修正できます</span></div>`;
+  res.innerHTML=`<div class="pres"><span class="tok">✓ ${s.name}さんの欠勤日を登録・保存しました</span><br>欠勤：<span style="color:var(--red)">${unavArr.join('・')}日</span><br><span style="font-size:.65rem;color:var(--muted)">📂 欠勤履歴タブで確認できます</span></div>`;
 }
+// ============================================================
+// LINE HISTORY (月別・スタッフ別欠勤希望)
+// ============================================================
+// lineHistory[yyyy-mm][staffId] = { name, dates:[{d,key}], raw, savedAt }
+let lineHistory = {};
+
+function histKey(y,m){ return `${y}-${String(m+1).padStart(2,'0')}`; }
+
+function saveHistory(staffId, staffName, unavDates, rawText){
+  const hk = histKey(curY, curM);
+  if(!lineHistory[hk]) lineHistory[hk] = {};
+  lineHistory[hk][staffId] = {
+    name: staffName,
+    dates: unavDates.sort((a,b)=>a-b),
+    raw: rawText,
+    savedAt: new Date().toLocaleString('ja-JP')
+  };
+}
+
+function renderHistory(){
+  const hk = histKey(curY, curM);
+  document.getElementById('histTitle').textContent = `${curY}年${curM+1}月　欠勤希望履歴`;
+  const monthData = lineHistory[hk] || {};
+  const keys = Object.keys(monthData);
+
+  let h = '';
+  if(!keys.length){
+    h = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:.82rem">この月の履歴はありません<br><span style="font-size:.72rem">LINE取込でデータを登録してください</span></div>';
+    document.getElementById('histBody').innerHTML = h;
+    return;
+  }
+
+  // Summary card
+  h += `<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:12px">`;
+  h += `<div style="font-size:.78rem;font-weight:700;color:var(--accent);margin-bottom:8px">📊 ${curY}年${curM+1}月　欠勤希望まとめ</div>`;
+  h += `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">`;
+
+  // 月のカレンダー形式で欠勤者一覧
+  const daysIn = new Date(curY, curM+1, 0).getDate();
+  const dayMap = {}; // day -> [name]
+  keys.forEach(sid => {
+    const rec = monthData[sid];
+    rec.dates.forEach(d => {
+      if(!dayMap[d]) dayMap[d] = [];
+      dayMap[d].push(rec.name.split(' ')[0]);
+    });
+  });
+
+  h += '</div>';
+
+  // Table: staff x dates with ✕ marks
+  h += `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.68rem;min-width:${Math.min(daysIn*22+100,600)}px">`;
+  h += `<thead><tr><th style="text-align:left;padding:4px 8px;background:var(--surface2);position:sticky;left:0;min-width:80px">スタッフ</th>`;
+  for(let d=1;d<=daysIn;d++){
+    const key=dk(curY,curM,d);
+    const dow=new Date(curY,curM,d).getDay();
+    const isH=JP_HOL.has(key);
+    const col=dow===0||isH?'var(--red)':dow===6?'var(--blue)':'var(--muted)';
+    h+=`<th style="padding:2px;text-align:center;color:${col};font-family:'DM Mono',monospace;min-width:22px">${d}</th>`;
+  }
+  h += '</tr></thead><tbody>';
+
+  keys.forEach(sid => {
+    const rec = monthData[sid];
+    const dSet = new Set(rec.dates);
+    h += `<tr><td style="padding:4px 8px;font-weight:500;background:var(--surface2);position:sticky;left:0;white-space:nowrap">${rec.name}</td>`;
+    for(let d=1;d<=daysIn;d++){
+      const key=dk(curY,curM,d);
+      const dow=new Date(curY,curM,d).getDay();
+      const isH=JP_HOL.has(key);
+      const wkend=dow===0||dow===6||isH;
+      h += dSet.has(d)
+        ? `<td style="text-align:center;background:rgba(192,48,48,.1);color:var(--red);font-weight:700">✕</td>`
+        : `<td style="text-align:center;background:${wkend?'rgba(0,0,0,.03)':''}"></td>`;
+    }
+    h += '</tr>';
+  });
+  h += '</tbody></table></div>';
+  h += '</div>';
+
+  // Individual cards
+  keys.forEach(sid => {
+    const rec = monthData[sid];
+    h += `<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px">`;
+    h += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">`;
+    h += `<div style="font-size:.82rem;font-weight:700">${rec.name}</div>`;
+    h += `<div style="font-size:.6rem;color:var(--muted)">${rec.savedAt}</div>`;
+    h += '</div>';
+    h += `<div style="font-size:.72rem;color:var(--red);margin-bottom:6px">欠勤希望：<b>${rec.dates.join('・')}日</b>（${rec.dates.length}日間）</div>`;
+    if(rec.raw){
+      h += `<details style="font-size:.65rem;color:var(--muted)"><summary style="cursor:pointer">元のLINEテキストを表示</summary>`;
+      h += `<div style="background:var(--surface2);border-radius:6px;padding:8px;margin-top:4px;white-space:pre-wrap;font-family:'DM Mono',monospace;line-height:1.6">${rec.raw}</div></details>`;
+    }
+    h += `<button onclick="reApply('${sid}','${hk}')" style="font-size:.68rem;padding:4px 10px;border-radius:5px;border:1px solid var(--green);color:var(--green);background:#fff;cursor:pointer;margin-top:6px">↩ カレンダーに再反映</button>`;
+    h += '</div>';
+  });
+
+  document.getElementById('histBody').innerHTML = h;
+}
+
+function reApply(staffId, hk){
+  const rec = (lineHistory[hk]||{})[staffId];
+  if(!rec) return;
+  const s = gs(parseInt(staffId));
+  if(!s){ alert('スタッフが見つかりません'); return; }
+  const parts = hk.split('-');
+  const y=parseInt(parts[0]), m=parseInt(parts[1])-1;
+  rec.dates.forEach(d => { s.avail[dk(y,m,d)] = false; });
+  renderCal();
+  alert(`✓ ${rec.name}さんの欠勤日をカレンダーに反映しました`);
+}
+
 function genReqMsg(){
   const y=curY,m=curM+1,next=m>=12?1:m+1,ny=m>=12?y+1:y;
   const lines=['【来月のシフトについて】','お疲れ様です。Cafe照です。','',`${ny}年${next}月の欠勤希望日を`,`${m}月15日までに`,'LINEで教えてください🙏','','【送り方】','欠勤したい日付だけ送ってください','例：5日、13日、20日','','よろしくお願いします！'];
@@ -860,7 +981,7 @@ function renderStaff(){
   document.getElementById('staffTitle').textContent=`${curY}年${curM+1}月　スタッフ設定`;
   const el=document.getElementById('staffCards');
   el.innerHTML='';
-  const sorted=[...staff].sort((a,b)=>(a.flag==='priority'?0:1)-(b.flag==='priority'?0:1)||((a.priority||3)-(b.priority||3)));
+  const sorted=[...staff];
   sorted.forEach(s=>{
     const div=document.createElement('div');
     div.className='scard';
@@ -873,7 +994,7 @@ function renderStaff(){
     }).join('');
     div.innerHTML=`
       <div class="schdr">
-        <span style="font-size:.68rem;background:${s.flag==='priority'?'var(--accent)':'var(--surface2)'};color:${s.flag==='priority'?'#fff':'var(--muted)'};padding:2px 8px;border-radius:10px;cursor:pointer;white-space:nowrap" onclick="toggleFlag(${s.id},this)">${s.flag==='priority'?'★優先':'通常'}</span>
+
         <input class="scname" value="${s.name}" onchange="updSt(${s.id},'name',this.value);renderCal()">
         <button class="delbtn" onclick="delStaff(${s.id})">削除</button>
       </div>
@@ -885,8 +1006,8 @@ function renderStaff(){
         </select>
         ${s.fixedRole?`<span style="font-size:.62rem;color:var(--accent)">常に${s.fixedRole}</span>`:''}
       </div>
-      <div class="sgrid4">
-        <div><label class="flbl">優先度</label><input type="number" class="finput" value="${s.priority||3}" min="1" max="10" onchange="updSt(${s.id},'priority',parseInt(this.value)||3);renderStaff()"></div>
+      <div class="sgrid">
+
         <div><label class="flbl">月最大日数</label><input type="number" class="finput" value="${max}" min="1" max="31" onchange="updSt(${s.id},'maxDays',parseInt(this.value)||20)"></div>
         <div><label class="flbl">週最大日数</label><input type="number" class="finput" value="${s.maxDaysWeek||7}" min="1" max="7" onchange="updSt(${s.id},'maxDaysWeek',parseInt(this.value)||7)"></div>
         <div><label class="flbl">土日祝上限</label><input type="number" class="finput" placeholder="無制限" value="${s.maxWkHol!=null?s.maxWkHol:''}" min="0" max="20" onchange="updSt(${s.id},'maxWkHol',this.value===''?null:parseInt(this.value))"></div>
@@ -915,14 +1036,7 @@ function toggleRole(id,rid,btn){
   if(i>=0){s.roles.splice(i,1);btn.style.background='';btn.style.borderColor='';btn.style.color='';}
   else{s.roles.push(rid);const r=ROLES.find(x=>x.id===rid);btn.style.background=r.color;btn.style.borderColor=r.color;btn.style.color='#fff';}
 }
-function toggleFlag(id,btn){
-  const s=gs(id);if(!s)return;
-  s.flag=s.flag==='priority'?'normal':'priority';
-  btn.style.background=s.flag==='priority'?'var(--accent)':'var(--surface2)';
-  btn.style.color=s.flag==='priority'?'#fff':'var(--muted)';
-  btn.textContent=s.flag==='priority'?'★優先':'通常';
-  renderStaff();
-}
+
 function updSt(id,k,v){const s=gs(id);if(s)s[k]=v;}
 function addStaff(){
   staff.push({id:nextId++,name:'新スタッフ',roles:['C'],rolePrio:['C'],defFrom:'09:00',defTo:'17:00',avail:{},priority:3,maxDays:20,maxDaysWeek:7,maxWkHol:null,fixedRole:null,prefDays:[],flag:'normal'});
@@ -941,7 +1055,7 @@ function applyDefaults(s){
   return {priority:3,maxDays:20,maxDaysWeek:7,maxWkHol:null,fixedRole:null,prefDays:[],flag:'normal',rolePrio:[],...s,avail:s.avail||{},rolePrio:s.rolePrio||s.roles||[]};
 }
 async function syncAll(){
-  const payload=JSON.stringify({staff,dayData});
+  const payload=JSON.stringify({staff,dayData,lineHistory});
   localStorage.setItem('cafeShift',payload);
   document.getElementById('syncSt').textContent='保存中...';
   try{
@@ -969,6 +1083,7 @@ function loadLocal(){
     const d=JSON.parse(localStorage.getItem('cafeShift')||'{}');
     if(d.staff&&d.staff.length){staff=d.staff.map(applyDefaults);nextId=Math.max(...staff.map(s=>s.id))+1;}
     if(d.dayData){dayData=d.dayData;Object.keys(dayData).forEach(k=>{if(dayData[k].open===undefined)dayData[k].open=true;});}
+    if(d.lineHistory) lineHistory=d.lineHistory;
     return !!d.staff;
   }catch(e){return false;}
 }
@@ -982,6 +1097,7 @@ async function loadFromGas(){
     const d=JSON.parse(js);
     if(d.staff&&d.staff.length){
       staff=d.staff.map(applyDefaults);
+      if(d.lineHistory) lineHistory=d.lineHistory;
       nextId=Math.max(...staff.map(s=>s.id))+1;
       if(d.dayData){
         dayData=d.dayData;
@@ -1009,6 +1125,7 @@ function showPage(name,btn){
   if(btn)btn.classList.add('on');
   if(name==='staff')renderStaff();
   if(name==='weekly')renderWeekly();
+  if(name==='history')renderHistory();
   if(name==='cal')renderCal();
 }
 
