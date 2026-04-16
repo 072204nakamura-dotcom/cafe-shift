@@ -347,15 +347,18 @@ body{font-family:'Noto Sans JP',sans-serif;background:#f5f0e8;color:#1e1810;min-
 const GAS_URL='https://script.google.com/macros/s/AKfycbzVretuyWf7A5QZEdQM8D2gbHi24t_NWm5U1U00VmXqjziSNi4EWLqnBnefE9c-KjKS/exec';
 
 const ROLES=[
-  {id:'C',name:'レジ・案内',   color:'#b8622a',must:true },
-  {id:'B',name:'ドリンク・デザート',color:'#8040a0',must:true },
-  {id:'H',name:'配膳・オーダー',color:'#1878a0',must:false},
-  {id:'D',name:'料理仕上・管理',color:'#b04040',must:true },
-  {id:'K',name:'調理メイン',   color:'#2a8050',must:true },
-  {id:'P',name:'ピザ場',       color:'#906020',must:false},
-  {id:'W',name:'洗い場',       color:'#406090',must:false},
+  {id:'C', name:'レジ・案内',       color:'#b8622a',must:true },
+  {id:'B', name:'ドリンク・デザート', color:'#8040a0',must:true },
+  {id:'BC',name:'B+C兼務',          color:'#a03090',must:false},
+  {id:'H', name:'配膳・オーダー',    color:'#1878a0',must:false},
+  {id:'D', name:'料理仕上・管理',    color:'#b04040',must:true },
+  {id:'BD',name:'B+D兼務',          color:'#903060',must:false},
+  {id:'K', name:'調理メイン',        color:'#2a8050',must:true },
+  {id:'P', name:'ピザ場',            color:'#906020',must:true },
+  {id:'W', name:'洗い場',            color:'#406090',must:false},
+  {id:'J', name:'事務作業',           color:'#507050',must:false},
 ];
-const MUST=['C','B','D','K'];
+const MUST=['C','B','D','K','P'];
 
 const JP_HOL=new Set([
   '2025-01-01','2025-01-13','2025-02-11','2025-02-23','2025-02-24',
@@ -398,7 +401,13 @@ function effTo(s,key){const a=dd(key).assignments.find(x=>x.staffId===s.id);retu
 function staffOnDay(key){return dd(key).assignments.filter(a=>a.role).map(a=>({...a,s:gs(a.staffId)})).filter(x=>x.s);}
 function checkRoles(key,dow){
   const covered=new Set(staffOnDay(key).map(a=>a.role));
-  return {missing:MUST.filter(r=>!covered.has(r)),warnP:(dow===0||dow===6)&&!covered.has('P')};
+  // BCはBとCを両方カバー、BDはBとDをカバー
+  if(covered.has('BC')){covered.add('B');covered.add('C');}
+  if(covered.has('BD')){covered.add('B');covered.add('D');}
+  const missing=MUST.filter(r=>!covered.has(r));
+  // H・Wは警告レベル
+  const warnRoles=['H','W'].filter(r=>!covered.has(r)&&staffOnDay(key).length>0);
+  return {missing, warnRoles};
 }
 function checkTime(key){
   const asgn=dd(key).assignments.filter(a=>a.role);
@@ -466,10 +475,10 @@ function renderCal(){
     const dow=new Date(y,m,d).getDay();
     const isOpen=data.open;
     const avail=staff.filter(s=>isAvail(s,key));
-    const {missing,warnP}=checkRoles(key,dow);
+    const {missing,warnRoles}=checkRoles(key,dow);
     const tIss=isOpen?checkTime(key):[];
     const isMiss=isOpen&&missing.length>0;
-    const isWarn=isOpen&&!isMiss&&(warnP||tIss.length>0);
+    const isWarn=isOpen&&!isMiss&&(warnRoles.length>0||tIss.length>0);
     if(isOpen){open++;if(isMiss)miss++;else if(isWarn)warn++;}
     const sunsat=dow===0?'su':dow===6?'sa':'';
     const stCls=isOpen?(isMiss?'ng':isWarn?'warn':'ok'):'closed';
@@ -492,10 +501,22 @@ function renderCal(){
         h+=`<div style="font-size:.6rem;color:var(--muted);margin-top:4px">出勤可:${avail.length}人</div>`;
       }
       h+='<div class="rbadges">';
-      MUST.forEach(r=>{const ok=staffOnDay(key).some(a=>a.role===r);h+=`<span class="rb ${ok?'ok':'ng'}">${r}</span>`;});
-      if(dow===0||dow===6){const ok=staffOnDay(key).some(a=>a.role==='P');h+=`<span class="rb ${ok?'ok':'wn'}">P</span>`;}
+      MUST.forEach(r=>{
+        const covered=new Set(staffOnDay(key).map(a=>a.role));
+        if(covered.has('BC')){covered.add('B');covered.add('C');}
+        if(covered.has('BD')){covered.add('B');covered.add('D');}
+        const ok=covered.has(r);
+        h+=`<span class="rb ${ok?'ok':'ng'}">${r}</span>`;
+      });
+      ['H','W'].forEach(r=>{
+        if(staffOnDay(key).length>0){
+          const ok=staffOnDay(key).some(a=>a.role===r);
+          h+=`<span class="rb ${ok?'ok':'wn'}">${r}</span>`;
+        }
+      });
       h+='</div>';
       if(isMiss) h+=`<div class="alert">⚠ ${missing.join('・')}不足</div>`;
+      if(!isMiss&&warnRoles.length) h+=`<div class="warn">△ ${warnRoles.join('・')}不足</div>`;
       if(tIss.length) h+=`<div class="warn">⏰ ${tIss[0]}</div>`;
     } else {
       h+=`<div style="font-size:.6rem;color:var(--muted);margin-top:6px">出勤可:${avail.length}人</div>`;
@@ -611,10 +632,10 @@ function renderModalBody(key,d,dow){
     h+='</div>';
   }
 
-  const {missing,warnP}=checkRoles(key,dow);
+  const {missing,warnRoles}=checkRoles(key,dow);
   const tIss=checkTime(key);
   if(missing.length) h+=`<div class="malert">⚠ 必須ポジション不足：${missing.map(r=>ROLES.find(x=>x.id===r)?.name||r).join('・')}</div>`;
-  if(warnP) h+=`<div class="mwarn">⚠ 土日はピザ場（P）がいると良いです</div>`;
+  if(warnRoles.length) h+=`<div class="mwarn">△ ${warnRoles.join('・')}が未配置です</div>`;
   if(tIss.length) h+=`<div class="mwarn">⏰ ${tIss.join(' / ')}</div>`;
 
   document.getElementById('modalBody').innerHTML=h;
@@ -723,7 +744,11 @@ function renderWeekly(){
         const from=s?effFrom(s,key):'?',to=s?effTo(s,key):'?';
         h+=`<td><span class="nchip" style="background:${r.color}22;color:${r.color};border:1px solid ${r.color}55">${s?s.name.split(' ')[0]:'?'}</span><div style="font-size:.58rem;color:var(--muted);font-family:'DM Mono',monospace">${from.slice(0,5)}〜${to.slice(0,5)}</div></td>`;
       } else {
-        const can=staff.filter(s=>( s.roles||[]).includes(r.id)&&isAvail(s,key));
+        // BC/BDカバーを考慮して候補を検索
+        const can=staff.filter(s=>{
+          const myRoles=s.roles||[];
+          return (myRoles.includes(r.id)||myRoles.some(mr=>ROLE_COVERS[mr]&&ROLE_COVERS[mr].includes(r.id)))&&isAvail(s,key);
+        });
         h+=`<td style="${r.must&&!can.length?'background:rgba(192,48,48,.05)':''}">
           <span style="color:${r.must?'var(--red)':'var(--border)'};font-size:.85rem">—</span>
           ${can.length?`<div style="font-size:.55rem;color:var(--muted)">候補${can.length}人</div>`:r.must?'<div style="font-size:.55rem;color:var(--red)">要確保</div>':''}
@@ -1256,11 +1281,13 @@ function renderMonthlyMatrix(y,m,daysIn){
         color=ro?ro.color:'var(--green)';
         cell=`<span style="font-family:'DM Mono',monospace;font-weight:700;color:${color}">${asgn.role}</span>`;
       } else if(!avail){
-        bg='rgba(192,48,48,.06)';
-        cell=`<span style="color:var(--red);font-size:.7rem">✕</span>`;
+        // 欠勤希望
+        bg='rgba(192,48,48,.08)';
+        cell=`<span style="color:var(--red);font-size:.75rem;font-weight:700">✕</span>`;
       } else {
-        bg=wkend?'rgba(0,0,0,.02)':'';
-        cell=`<span style="color:var(--border)">—</span>`;
+        // 出勤可能だが未アサイン → ✕（薄め）
+        bg=wkend?'rgba(0,0,0,.03)':'';
+        cell=`<span style="color:#ccc;font-size:.75rem">✕</span>`;
       }
       h+=`<td style="text-align:center;padding:3px 2px;border:1px solid var(--border);background:${bg}">${cell}</td>`;
     }
@@ -1290,8 +1317,8 @@ function renderMonthlyMatrix(y,m,daysIn){
   // 凡例
   h+=`<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;font-size:.65rem;color:var(--muted)">`;
   ROLES.forEach(r=>h+=`<span><span style="display:inline-block;width:16px;height:16px;border-radius:3px;background:${r.color}33;color:${r.color};font-family:'DM Mono',monospace;font-weight:700;text-align:center;line-height:16px;font-size:.6rem">${r.id}</span> ${r.name}</span>`);
-  h+=`<span><span style="color:var(--red)">✕</span> 欠勤希望</span>`;
-  h+=`<span><span style="color:var(--border)">—</span> 未アサイン（出勤可）</span>`;
+  h+=`<span><span style="color:var(--red);font-weight:700">✕</span> 欠勤希望</span>`;
+  h+=`<span><span style="color:#ccc;font-weight:700">✕</span> 未アサイン（出勤可）</span>`;
   h+=`</div>`;
 
   document.getElementById('monthlyBody').innerHTML=h;
