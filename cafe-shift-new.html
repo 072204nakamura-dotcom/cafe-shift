@@ -1170,15 +1170,43 @@ let monthlyView = 'matrix';
 
 function printMonthly(){
   if(monthlyView!=='matrix') setMonthlyView('matrix');
-  // 月間出勤表ページだけ印刷対象に
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('print-target'));
-  document.getElementById('page-monthly').classList.add('print-target');
   setTimeout(()=>{
-    window.print();
-    // 印刷後にクラスを戻す
-    setTimeout(()=>{
-      document.querySelectorAll('.page').forEach(p=>p.classList.remove('print-target'));
-    },1000);
+    // 印刷用HTMLを生成して新しいウィンドウで開く
+    const title=document.getElementById('monthlyTitle').textContent;
+    const body=document.getElementById('monthlyBody').innerHTML;
+    const printHtml=`<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${title}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Noto Sans JP',sans-serif;padding:12px;background:#fff;color:#1e1810;font-size:10pt;}
+h2{font-size:13pt;color:#b8622a;margin-bottom:10px;font-weight:700;}
+table{border-collapse:collapse;width:100%;font-size:8pt;}
+th,td{border:1px solid #ddd;padding:2px 3px;text-align:center;}
+th{background:#f5f0e8;font-weight:600;}
+.sticky{text-align:left;padding:3px 6px;font-weight:500;white-space:nowrap;}
+.print-btn{
+  display:block;margin:0 auto 12px;padding:10px 24px;
+  background:#3a8a5a;color:#fff;border:none;border-radius:8px;
+  font-size:12pt;font-family:inherit;cursor:pointer;
+}
+@media print{.print-btn{display:none;}}
+@page{size:A4 landscape;margin:10mm;}
+</style>
+</head>
+<body>
+<button class="print-btn" onclick="window.print()">🖨 この画面を印刷・PDF保存</button>
+<h2>${title}</h2>
+${body}
+</body>
+</html>`;
+    const blob=new Blob([printHtml],{type:'text/html'});
+    const url=URL.createObjectURL(blob);
+    window.open(url,'_blank');
   },300);
 }
 
