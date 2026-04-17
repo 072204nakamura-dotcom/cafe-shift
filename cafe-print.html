@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cafe照 印刷</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap');
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Noto Sans JP', sans-serif;
+  background: #fff;
+  color: #1e1810;
+  padding: 12px;
+}
+
+/* 印刷ボタンエリア */
+.print-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #f5f0e8;
+  border-radius: 10px;
+  margin-bottom: 16px;
+}
+.print-btn {
+  background: #3a8a5a;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 24px;
+  font-size: 1rem;
+  font-family: inherit;
+  cursor: pointer;
+  font-weight: 700;
+}
+.back-btn {
+  background: #fff;
+  color: #1e1810;
+  border: 1px solid #ddd0b8;
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+.info {
+  font-size: 0.72rem;
+  color: #8a7a60;
+  flex: 1;
+}
+
+h2 {
+  font-size: 1.1rem;
+  color: #b8622a;
+  margin-bottom: 12px;
+  font-weight: 700;
+}
+
+/* テーブルスタイル（メインツールと同じ） */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.72rem;
+}
+th, td {
+  border: 1px solid #ddd0b8;
+  padding: 3px 3px;
+  text-align: center;
+}
+th {
+  background: #f5f0e8;
+  font-weight: 600;
+}
+
+/* スタッフサマリーカード */
+.summary-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+/* 印刷時 */
+@media print {
+  .print-bar { display: none !important; }
+  body { padding: 4px; font-size: 9pt; }
+  h2 { font-size: 11pt; margin-bottom: 8px; }
+  table { font-size: 7.5pt; }
+  th, td { padding: 2px 2px; }
+  @page { size: A4 landscape; margin: 8mm; }
+}
+
+.no-data {
+  text-align: center;
+  padding: 40px;
+  color: #8a7a60;
+  font-size: 0.9rem;
+}
+</style>
+</head>
+<body>
+
+<div class="print-bar">
+  <button class="print-btn" onclick="window.print()">🖨 印刷 / PDF保存</button>
+  <button class="back-btn" onclick="history.back()">← 戻る</button>
+  <div class="info" id="savedAt"></div>
+</div>
+
+<div id="content">
+  <div class="no-data">データを読み込み中...</div>
+</div>
+
+<script>
+window.addEventListener('load', function(){
+  try {
+    const raw = localStorage.getItem('cafePrintData');
+    if(!raw){
+      document.getElementById('content').innerHTML =
+        '<div class="no-data">⚠ データがありません。<br>シフト管理ツールの「📊 月間出勤表」から「🖨 印刷・PDF」を押してください。</div>';
+      return;
+    }
+    const data = JSON.parse(raw);
+    document.title = 'Cafe照 ' + (data.title || '月間出勤表');
+    document.getElementById('savedAt').textContent = data.savedAt ? '作成日時：' + data.savedAt : '';
+    document.getElementById('content').innerHTML =
+      '<h2>' + (data.title || '月間出勤表') + '</h2>' + (data.body || '');
+  } catch(e) {
+    document.getElementById('content').innerHTML =
+      '<div class="no-data">⚠ データの読み込みに失敗しました。<br>' + e.message + '</div>';
+  }
+});
+</script>
+</body>
+</html>
