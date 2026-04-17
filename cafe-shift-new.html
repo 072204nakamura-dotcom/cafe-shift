@@ -1103,7 +1103,9 @@ function applyDefaults(s){
   return {priority:3,maxDays:20,maxDaysWeek:7,maxWkHol:null,fixedRole:null,prefDays:[],flag:'normal',rolePrio:[],...s,avail:s.avail||{},rolePrio:s.rolePrio||s.roles||[]};
 }
 async function syncAll(){
-  const payload=JSON.stringify({staff,dayData,lineHistory});
+  const storedPrint=localStorage.getItem('cafePrintData');
+  const printData=storedPrint?JSON.parse(storedPrint):null;
+  const payload=JSON.stringify({staff,dayData,lineHistory,printData});
   localStorage.setItem('cafeShift',payload);
   document.getElementById('syncSt').textContent='保存中...';
   try{
@@ -1168,17 +1170,24 @@ async function loadFromGas(){
 // ============================================================
 let monthlyView = 'matrix';
 
-function printMonthly(){
+async function printMonthly(){
   if(monthlyView!=='matrix') setMonthlyView('matrix');
-  setTimeout(()=>{
-    // データをlocalStorageに保存して印刷ページへ遷移
+  setTimeout(async()=>{
     const printData={
       title: document.getElementById('monthlyTitle').textContent,
       body: document.getElementById('monthlyBody').innerHTML,
       savedAt: new Date().toLocaleString('ja-JP')
     };
+    // ローカルに保存
     localStorage.setItem('cafePrintData', JSON.stringify(printData));
-    // 同じフォルダのcafe-print.htmlへ遷移
+    // GASにも保存（シフトデータと別キーで）
+    try{
+      const payload=JSON.stringify({staff,dayData,lineHistory,printData});
+      await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain'},redirect:'follow',body:payload});
+    }catch(e){
+      console.warn('GAS print save failed:', e.message);
+    }
+    // 印刷ページへ遷移
     const baseUrl=location.href.substring(0,location.href.lastIndexOf('/')+1);
     location.href=baseUrl+'cafe-print.html';
   },300);
