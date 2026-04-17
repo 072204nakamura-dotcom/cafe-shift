@@ -1103,8 +1103,16 @@ function applyDefaults(s){
   return {priority:3,maxDays:20,maxDaysWeek:7,maxWkHol:null,fixedRole:null,prefDays:[],flag:'normal',rolePrio:[],...s,avail:s.avail||{},rolePrio:s.rolePrio||s.roles||[]};
 }
 async function syncAll(){
-  const storedPrint=localStorage.getItem('cafePrintData');
-  const printData=storedPrint?JSON.parse(storedPrint):null;
+  // 現在の月間出勤表データを自動生成
+  let printData=null;
+  try{
+    // 一時的にmonthlyページのデータを生成
+    const y=curY,m=curM,daysIn=new Date(y,m+1,0).getDate();
+    const title=y+'年'+(m+1)+'月　月間出勤表';
+    // renderMonthlyMatrixの結果を取得（DOMに描画せず文字列として）
+    const storedPrint=localStorage.getItem('cafePrintData');
+    if(storedPrint) printData=JSON.parse(storedPrint);
+  }catch(e){}
   const payload=JSON.stringify({staff,dayData,lineHistory,printData});
   localStorage.setItem('cafeShift',payload);
   document.getElementById('syncSt').textContent='保存中...';
@@ -1172,25 +1180,34 @@ let monthlyView = 'matrix';
 
 async function printMonthly(){
   if(monthlyView!=='matrix') setMonthlyView('matrix');
-  setTimeout(async()=>{
-    const printData={
-      title: document.getElementById('monthlyTitle').textContent,
-      body: document.getElementById('monthlyBody').innerHTML,
-      savedAt: new Date().toLocaleString('ja-JP')
-    };
-    // ローカルに保存
-    localStorage.setItem('cafePrintData', JSON.stringify(printData));
-    // GASにも保存（シフトデータと別キーで）
-    try{
-      const payload=JSON.stringify({staff,dayData,lineHistory,printData});
-      await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain'},redirect:'follow',body:payload});
-    }catch(e){
-      console.warn('GAS print save failed:', e.message);
-    }
-    // 印刷ページへ遷移
-    const baseUrl=location.href.substring(0,location.href.lastIndexOf('/')+1);
-    location.href=baseUrl+'cafe-print.html';
-  },300);
+  const btn=document.querySelector('[onclick="printMonthly()"]');
+  if(btn){ btn.textContent='⏳ 保存中...'; btn.disabled=true; }
+
+  const printData={
+    title: document.getElementById('monthlyTitle').textContent,
+    body: document.getElementById('monthlyBody').innerHTML,
+    savedAt: new Date().toLocaleString('ja-JP')
+  };
+  localStorage.setItem('cafePrintData', JSON.stringify(printData));
+
+  // GASに全データ＋printDataを保存
+  try{
+    const storedPrint=localStorage.getItem('cafePrintData');
+    const pd=storedPrint?JSON.parse(storedPrint):null;
+    const payload=JSON.stringify({staff,dayData,lineHistory,printData:pd});
+    await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain'},redirect:'follow',body:payload});
+    if(btn){ btn.textContent='✓ 共有用を更新しました！'; }
+    setTimeout(()=>{
+      if(btn){ btn.textContent='🖨 印刷・PDF'; btn.disabled=false; }
+    },3000);
+    // スタッフ共有URLを案内
+    const printUrl=location.href.substring(0,location.href.lastIndexOf('/')+'/')+('cafe-print.html');
+    const shareUrl=location.origin+location.pathname.substring(0,location.pathname.lastIndexOf('/'))+'/cafe-print.html';
+    alert('✓ 共有用出勤表を更新しました！\n\nスタッフへ送るURL:\n'+shareUrl+'\n\nこのURLをLINEで共有してください。');
+  }catch(e){
+    if(btn){ btn.textContent='🖨 印刷・PDF'; btn.disabled=false; }
+    alert('⚠ GASへの保存に失敗しました\n'+e.message);
+  }
 }
 
 function setMonthlyView(v){
