@@ -185,16 +185,34 @@ body{font-family:'Noto Sans JP',sans-serif;background:#f5f0e8;color:#1e1810;min-
 .rdot{display:inline-block;width:22px;height:22px;border-radius:50%;font-size:.6rem;font-weight:700;line-height:22px;text-align:center;color:#fff;}
 
 @media print{
-  .hdr,.tabs,.ov{display:none!important;}
+  .hdr,.tabs,.ov,
+  .nbtn,[onclick="printMonthly()"],
+  #btnMatrix,#btnUnused{display:none!important;}
+  /* 月間出勤表ページのみ表示 */
   .page{display:none!important;}
-  .page.print-target{display:block!important;}
-  body{background:#fff;margin:0;padding:8px;}
-  /* マトリクス表の印刷調整 */
-  #monthlyBody table{font-size:9pt;min-width:unset!important;}
-  #monthlyBody td,#monthlyBody th{padding:2px 2px!important;min-width:18px!important;}
+  #page-monthly{display:block!important;}
+  body{background:#fff;margin:0;padding:6px;}
+  /* マトリクス表調整 */
   #monthlyBody{overflow:visible!important;}
-  /* 横長レイアウト */
-  @page{size:A4 landscape;margin:10mm;}
+  #monthlyBody table{
+    font-size:7.5pt!important;
+    min-width:unset!important;
+    width:100%!important;
+    table-layout:fixed;
+  }
+  #monthlyBody td,#monthlyBody th{
+    padding:2px 1px!important;
+    min-width:unset!important;
+    max-width:24px;
+    overflow:hidden;
+    font-size:7pt!important;
+  }
+  #monthlyBody .summary-wrap>div{
+    font-size:7pt!important;
+    padding:3px 5px!important;
+  }
+  /* A4横 */
+  @page{size:A4 landscape;margin:8mm;}
 }
 </style>
 </head>
@@ -302,7 +320,8 @@ body{font-family:'Noto Sans JP',sans-serif;background:#f5f0e8;color:#1e1810;min-
   <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
     <button class="nbtn" onclick="setMonthlyView('matrix')" id="btnMatrix" style="font-size:.72rem;background:#1e1810;color:#fff;border-color:#1e1810">出勤マトリクス</button>
     <button class="nbtn" onclick="setMonthlyView('unused')" id="btnUnused" style="font-size:.72rem">未出勤スタッフ</button>
-    <button class="nbtn" onclick="printMonthly()" style="font-size:.72rem;background:var(--green);color:#fff;border-color:var(--green);margin-left:auto">🖨 印刷・PDF</button>
+    <button class="nbtn" onclick="doPrint()" style="font-size:.72rem;background:var(--green);color:#fff;border-color:var(--green);margin-left:auto">🖨 印刷・PDF</button>
+    <button class="nbtn" onclick="printMonthly()" style="font-size:.72rem;background:#2860a8;color:#fff;border-color:#2860a8" id="shareBtn">📤 スタッフ共有用に保存</button>
   </div>
   <div id="monthlyBody"></div>
 </div>
@@ -1177,6 +1196,18 @@ async function loadFromGas(){
 // MONTHLY REPORT
 // ============================================================
 let monthlyView = 'matrix';
+
+function doPrint(){
+  // 月間出勤表ページだけ印刷対象にしてprint
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  document.getElementById('page-monthly').classList.add('on');
+  window.print();
+  // 印刷後に元のタブに戻す（少し待つ）
+  setTimeout(()=>{
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+    document.getElementById('page-monthly').classList.add('on');
+  },500);
+}
 
 async function printMonthly(){
   if(monthlyView!=='matrix') setMonthlyView('matrix');
