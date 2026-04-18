@@ -184,6 +184,18 @@ body{font-family:'Noto Sans JP',sans-serif;background:#f5f0e8;color:#1e1810;min-
 .nchip{font-size:.65rem;padding:2px 6px;border-radius:8px;display:inline-block;white-space:nowrap;}
 .rdot{display:inline-block;width:22px;height:22px;border-radius:50%;font-size:.6rem;font-weight:700;line-height:22px;text-align:center;color:#fff;}
 
+.drag-handle{
+  cursor:grab;
+  padding:4px 8px;
+  color:var(--muted);
+  font-size:1.1rem;
+  user-select:none;
+  flex-shrink:0;
+}
+.drag-handle:active{cursor:grabbing;}
+.scard.dragging{opacity:.4;border:2px dashed var(--accent);}
+.scard.drag-over{border-top:3px solid var(--accent);}
+
 @media print{
   .hdr,.tabs,.ov,
   .nbtn,[onclick="printMonthly()"],
@@ -1066,8 +1078,11 @@ function renderStaff(){
       const on=(s.roles||[]).includes(r.id);
       return `<button class="rtoggle" style="${on?`background:${r.color};border-color:${r.color};color:#fff`:''}" onclick="toggleRole(${s.id},'${r.id}',this)">${r.id}：${r.name}</button>`;
     }).join('');
+    div.setAttribute('draggable','true');
+    div.dataset.staffId=s.id;
     div.innerHTML=`
       <div class="schdr">
+        <span class="drag-handle" title="ドラッグで並び替え">☰</span>
 
         <input class="scname" value="${s.name}" onchange="updSt(${s.id},'name',this.value);renderCal()">
         <button class="delbtn" onclick="delStaff(${s.id})">削除</button>
@@ -1093,6 +1108,37 @@ function renderStaff(){
       <div style="display:flex;flex-wrap:wrap;gap:5px;margin:4px 0 8px">${rBtns}</div>
       <div id="avail-${s.id}">${buildAvailCal(s)}</div>
     `;
+    // ドラッグイベント
+    div.addEventListener('dragstart',e=>{
+      e.dataTransfer.effectAllowed='move';
+      e.dataTransfer.setData('text/plain',s.id);
+      setTimeout(()=>div.classList.add('dragging'),0);
+    });
+    div.addEventListener('dragend',()=>{
+      div.classList.remove('dragging');
+      document.querySelectorAll('.scard').forEach(c=>c.classList.remove('drag-over'));
+    });
+    div.addEventListener('dragover',e=>{
+      e.preventDefault();
+      e.dataTransfer.dropEffect='move';
+      document.querySelectorAll('.scard').forEach(c=>c.classList.remove('drag-over'));
+      div.classList.add('drag-over');
+    });
+    div.addEventListener('drop',e=>{
+      e.preventDefault();
+      div.classList.remove('drag-over');
+      const fromId=parseInt(e.dataTransfer.getData('text/plain'));
+      const toId=s.id;
+      if(fromId===toId) return;
+      // staffの順番を入れ替え
+      const fi=staff.findIndex(x=>x.id===fromId);
+      const ti=staff.findIndex(x=>x.id===toId);
+      if(fi<0||ti<0) return;
+      const [moved]=staff.splice(fi,1);
+      staff.splice(ti,0,moved);
+      renderStaff();
+      renderCal();
+    });
     el.appendChild(div);
   });
 }
