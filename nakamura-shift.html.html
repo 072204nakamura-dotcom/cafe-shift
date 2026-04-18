@@ -330,7 +330,17 @@ function dd(key){
   return d;
 }
 function isAvail(s,key){return s.avail[key]!==false;} // 後方互換用
+function isNakamura(s){return s.id===1||s.id===2||s.name.includes('中村 伴樹')||s.name.includes('中村 紀子');}
 function isAvailSess(s,key,sess){
+  const dow=new Date(key).getDay();
+  // 中村伴樹・中村紀子は月曜以外は基本出勤（明示的にNGにした日のみ除外）
+  if(isNakamura(s)){
+    if(dow===1) return false;
+    const availObj=sess==='lunch'?s.lunchAvail:s.dinnerAvail;
+    if(availObj&&availObj[key]===false) return false;
+    if(s.avail[key]===false) return false;
+    return true;
+  }
   // セッション別カレンダーがあればそちらを優先、なければ共通availを参照
   if(sess==='lunch'){
     if(s.lunchAvail&&s.lunchAvail[key]!==undefined) return s.lunchAvail[key]!==false;
@@ -379,7 +389,16 @@ function getRoleTag(s){return(s.roles||[]).includes('K')&&(s.roles||[]).includes
 // ============================================================
 // CALENDAR
 // ============================================================
-function chMonth(d){curM+=d;if(curM<0){curM=11;curY--;}if(curM>11){curM=0;curY++;}renderCal();}
+function autoAssignNakamuraAllDays(){
+  const n=new Date(curY,curM+1,0).getDate();
+  for(let d=1;d<=n;d++){
+    const key=dk(curY,curM,d);
+    autoAssignNakamura(key);
+  }
+  renderCal();
+}
+
+function chMonth(d){curM+=d;if(curM<0){curM=11;curY--;}if(curM>11){curM=0;curY++;}autoAssignNakamuraAllDays();}
 function renderCal(){
   document.getElementById('calTitle').textContent=`${curY}年 ${curM+1}月`;
   const y=curY,m=curM,first=new Date(y,m,1).getDay(),days=new Date(y,m+1,0).getDate();
@@ -442,11 +461,44 @@ function renderCal(){
 // ============================================================
 // MODAL
 // ============================================================
+function autoAssignNakamura(key){
+  const pat=getDayPattern(key);
+  if(pat==='none') return;
+  const data=dd(key);
+  // 中村伴樹(id:1)→K、中村紀子(id:2)→H を各セッションに自動アサイン
+  const nakamura=[
+    {name:'中村 伴樹',role:'K'},
+    {name:'中村 紀子',role:'H'},
+  ];
+  nakamura.forEach(({name,role})=>{
+    const s=staff.find(x=>x.name===name);
+    if(!s) return;
+    ['lunch','dinner'].forEach(sess=>{
+      const sessOpen=(sess==='lunch')?(pat==='both'||pat==='lunch_only'):(pat==='both'||pat==='dinner_only');
+      if(!sessOpen) return;
+      if(!canWork(s,key,sess)) return;
+      const sData=data[sess];
+      const existing=sData.assignments.find(a=>a.staffId===s.id);
+      // まだアサインされていない場合のみ自動セット
+      if(!existing||!existing.role){
+        if(!existing){
+          sData.assignments.push({staffId:s.id,role,timeFrom:null,timeTo:null});
+        } else {
+          existing.role=role;
+        }
+      }
+    });
+  });
+}
+
 function openModal(key,d){
   const pat=getDayPattern(key),dateObj=new Date(key),dow=dateObj.getDay();
   const DOW=['日','月','火','水','木','金','土'];
   document.getElementById('modalTitle').textContent=`${curY}年${curM+1}月${d}日（${DOW[dow]}）`;
+  // 営業日なら中村両名を自動アサイン
+  if(dow!==1) autoAssignNakamura(key);
   renderModalBody(key,d,dow,pat);
+  renderCal();
   document.getElementById('ov').classList.add('on');
 }
 function renderModalBody(key,d,dow,pat){
@@ -786,7 +838,41 @@ function buildAvailCal(s){
   if(!s.lunchAvail) s.lunchAvail={};
   if(!s.dinnerAvail) s.dinnerAvail={};
 
-  function buildGrid(sess){
+  // 中村両名は基本出勤なのでカレンダーの代わりに説明を表示（休みたい日だけ設定）
+  if(isNakamura(s)){
+    function buildNakamuraGrid(sess){
+      const availObj=sess==='lunch'?s.lunchAvail:s.dinnerAvail;
+      const color=sess==='lunch'?'var(--lunch)':'var(--dinner)';
+      const label=sess==='lunch'?'🌞 ランチ':'🌙 ディナー';
+      const sid=s.id;
+      let h=`<div style="margin-bottom:8px">
+        <div class="acal-hdr">
+          <span class="acal-lbl" style="color:${color}">${label}　<span style="font-size:.58rem;background:rgba(61,122,80,.15);color:var(--green);padding:1px 6px;border-radius:5px;font-weight:700">基本出勤</span></span>
+          <div class="acal-btns">
+            <button class="acal-btn rs" onclick="clearAvailSess(${sid},'${sess}')">リセット</button>
+          </div>
+        </div>
+        <p style="font-size:.62rem;color:var(--muted);margin:3px 0 5px">休みたい日だけタップしてください（赤＝休み）</p>
+        <div class="acal-grid">`;
+      DOW.forEach((dn,i)=>h+=`<div class="acal-dlbl ${i===0?'su':i===6?'sa':''}">${dn}</div>`);
+      for(let i=0;i<first;i++)h+=`<div class="acal-empty"></div>`;
+      for(let d=1;d<=n;d++){
+        const key=dk(y,m,d),dow=new Date(y,m,d).getDay();
+        if(dow===1){h+=`<div class="acal-day unavail" style="opacity:.3">${d}</div>`;continue;}
+        const isNg=(availObj&&availObj[key]===false)||(s.avail[key]===false);
+        const sunsat=dow===0?'su':dow===6?'sa':'';
+        h+=`<div class="acal-day ${isNg?'unavail':'avail'} ${sunsat}"
+          style="${isNg?'background:rgba(184,48,48,.2);border-color:var(--red);':`background:${color};`}"
+          onclick="toggleAvailSess(${sid},'${sess}','${key}',this)">${d}</div>`;
+      }
+      h+=`</div></div>`;
+      return h;
+    }
+    return `<div class="acal-wrap" id="avail-${s.id}">
+      ${s.lunchOk!==false ? buildNakamuraGrid('lunch') : ''}
+      ${s.dinnerOk!==false ? buildNakamuraGrid('dinner') : ''}
+    </div>`;
+  }
     const availObj=sess==='lunch'?s.lunchAvail:s.dinnerAvail;
     const color=sess==='lunch'?'var(--lunch)':'var(--dinner)';
     const label=sess==='lunch'?'🌞 ランチ出勤可能日':'🌙 ディナー出勤可能日';
@@ -1070,7 +1156,9 @@ function initDefaultStaff(){
 const tmr=new Date();tmr.setDate(tmr.getDate()+1);
 document.getElementById('noticeDate').value=tmr.toISOString().slice(0,10);
 loadFromCloud().then(()=>{
-  if(!staff.length){initDefaultStaff();renderCal();updatePasteStaff();}
+  if(!staff.length){initDefaultStaff();}
+  autoAssignNakamuraAllDays();
+  updatePasteStaff();
 });
 </script>
 </body>
