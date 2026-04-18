@@ -329,10 +329,20 @@ function dd(key){
   if(!d.dinner.assignments)d.dinner.assignments=[];
   return d;
 }
-function isAvail(s,key){return s.avail[key]!==false;}
+function isAvail(s,key){return s.avail[key]!==false;} // 後方互換用
+function isAvailSess(s,key,sess){
+  // セッション別カレンダーがあればそちらを優先、なければ共通availを参照
+  if(sess==='lunch'){
+    if(s.lunchAvail&&s.lunchAvail[key]!==undefined) return s.lunchAvail[key]!==false;
+    return s.avail[key]!==false;
+  } else {
+    if(s.dinnerAvail&&s.dinnerAvail[key]!==undefined) return s.dinnerAvail[key]!==false;
+    return s.avail[key]!==false;
+  }
+}
 // セッションに出勤可能か（スタッフ設定＋欠勤希望両方チェック）
 function canWork(s,key,sess){
-  if(!isAvail(s,key))return false;
+  if(!isAvailSess(s,key,sess))return false;
   return sess==='lunch'?(s.lunchOk!==false):(s.dinnerOk!==false);
 }
 function getDayPattern(key){
@@ -567,7 +577,13 @@ function parseLine(){
   });
   if(!unav.size){res.innerHTML='<div class="pres terr">日付が読み取れませんでした</div>';return;}
   const arr=[...unav].sort((a,b)=>a-b);
-  arr.forEach(d=>{s.avail[dk(curY,curM,d)]=false;});
+  arr.forEach(d=>{
+    if(!s.lunchAvail)s.lunchAvail={};
+    if(!s.dinnerAvail)s.dinnerAvail={};
+    s.lunchAvail[dk(curY,curM,d)]=false;
+    s.dinnerAvail[dk(curY,curM,d)]=false;
+    s.avail[dk(curY,curM,d)]=false; // 後方互換
+  });
   // 履歴に保存
   const monthKey=`${curY}-${String(curM+1).padStart(2,'0')}`;
   lineHistory.push({id:nextHistId++,staffId:s.id,staffName:s.name,month:monthKey,dates:arr,raw:txt,savedAt:new Date().toLocaleString('ja-JP')});
@@ -671,7 +687,13 @@ function reApplyHist(hid){
   const r=lineHistory.find(x=>x.id===hid);if(!r)return;
   const s=gs(r.staffId);if(!s){alert('スタッフが見つかりません（削除済みの可能性があります）');return;}
   const parts=r.month.split('-'),y=parseInt(parts[0]),m=parseInt(parts[1])-1;
-  r.dates.forEach(d=>{s.avail[dk(y,m,d)]=false;});
+  r.dates.forEach(d=>{
+    if(!s.lunchAvail)s.lunchAvail={};
+    if(!s.dinnerAvail)s.dinnerAvail={};
+    s.lunchAvail[dk(y,m,d)]=false;
+    s.dinnerAvail[dk(y,m,d)]=false;
+    s.avail[dk(y,m,d)]=false;
+  });
   renderCal();alert(`✓ ${r.staffName}さんの欠勤をカレンダーに反映しました`);
 }
 function deleteHist(hid){
@@ -761,40 +783,90 @@ function printMonthly(){
 function buildAvailCal(s){
   const y=curY,m=curM,n=new Date(y,m+1,0).getDate(),first=new Date(y,m,1).getDay();
   const DOW=['日','月','火','水','木','金','土'];
-  let h=`<div class="acal-wrap"><div class="acal-hdr"><span class="acal-lbl">📅 出勤可能日（欠勤希望）</span>
-    <div class="acal-btns">
-      <button class="acal-btn ok" onclick="setAllAvail(${s.id},true)">全日OK</button>
-      <button class="acal-btn ng" onclick="setAllAvail(${s.id},false)">全日NG</button>
-      <button class="acal-btn rs" onclick="clearAvail(${s.id})">リセット</button>
-    </div></div><div class="acal-grid">`;
-  DOW.forEach((dn,i)=>h+=`<div class="acal-dlbl ${i===0?'su':i===6?'sa':''}">${dn}</div>`);
-  for(let i=0;i<first;i++)h+=`<div class="acal-empty"></div>`;
-  for(let d=1;d<=n;d++){
-    const key=dk(y,m,d),dow=new Date(y,m,d).getDay(),avail=isAvail(s,key);
-    h+=`<div class="acal-day ${avail?'avail':'unavail'} ${dow===0?'su':dow===6?'sa':''}" onclick="toggleAvail(${s.id},'${key}',this)">${d}</div>`;
+  if(!s.lunchAvail) s.lunchAvail={};
+  if(!s.dinnerAvail) s.dinnerAvail={};
+
+  function buildGrid(sess){
+    const availObj=sess==='lunch'?s.lunchAvail:s.dinnerAvail;
+    const color=sess==='lunch'?'var(--lunch)':'var(--dinner)';
+    const label=sess==='lunch'?'🌞 ランチ出勤可能日':'🌙 ディナー出勤可能日';
+    const sid=s.id;
+    let h=`<div style="margin-bottom:8px">
+      <div class="acal-hdr">
+        <span class="acal-lbl" style="color:${color}">${label}</span>
+        <div class="acal-btns">
+          <button class="acal-btn ok" onclick="setAllAvailSess(${sid},'${sess}',true)">全日OK</button>
+          <button class="acal-btn ng" onclick="setAllAvailSess(${sid},'${sess}',false)">全日NG</button>
+          <button class="acal-btn rs" onclick="clearAvailSess(${sid},'${sess}')">リセット</button>
+        </div>
+      </div>
+      <div class="acal-grid">`;
+    DOW.forEach((dn,i)=>h+=`<div class="acal-dlbl ${i===0?'su':i===6?'sa':''}">${dn}</div>`);
+    for(let i=0;i<first;i++)h+=`<div class="acal-empty"></div>`;
+    for(let d=1;d<=n;d++){
+      const key=dk(y,m,d),dow=new Date(y,m,d).getDay();
+      // セッション別カレンダーがあれば優先、なければ共通avail参照
+      let avail;
+      if(availObj[key]!==undefined) avail=availObj[key]!==false;
+      else avail=s.avail[key]!==false;
+      const sunsat=dow===0?'su':dow===6?'sa':'';
+      h+=`<div class="acal-day ${avail?'avail':'unavail'} ${sunsat}"
+        style="${avail?`background:${color};`:''}${sunsat==='su'?'color:var(--red)':sunsat==='sa'?'color:var(--blue)':''}"
+        onclick="toggleAvailSess(${sid},'${sess}','${key}',this)">${d}</div>`;
+    }
+    h+=`</div></div>`;
+    return h;
   }
-  h+=`</div></div>`;return h;
+
+  return `<div class="acal-wrap" id="avail-${s.id}">
+    ${s.lunchOk!==false ? buildGrid('lunch') : `<div style="font-size:.64rem;color:var(--muted);padding:4px 0">🌞 ランチ出勤なし（設定不要）</div>`}
+    ${s.dinnerOk!==false ? buildGrid('dinner') : `<div style="font-size:.64rem;color:var(--muted);padding:4px 0">🌙 ディナー出勤なし（設定不要）</div>`}
+  </div>`;
 }
-function toggleAvail(sid,key,el){
+
+function toggleAvailSess(sid,sess,key,el){
   const s=gs(sid);if(!s)return;
-  s.avail[key]=!isAvail(s,key);
-  el.className=`acal-day ${s.avail[key]?'avail':'unavail'} ${el.className.includes('su')?'su':el.className.includes('sa')?'sa':''}`;
+  if(!s.lunchAvail)s.lunchAvail={};
+  if(!s.dinnerAvail)s.dinnerAvail={};
+  const availObj=sess==='lunch'?s.lunchAvail:s.dinnerAvail;
+  const color=sess==='lunch'?'var(--lunch)':'var(--dinner)';
+  // 現在の状態を判定
+  let cur;
+  if(availObj[key]!==undefined) cur=availObj[key]!==false;
+  else cur=s.avail[key]!==false;
+  availObj[key]=!cur;
+  const isOn=availObj[key];
+  const sunsat=el.className.includes('su')?'su':el.className.includes('sa')?'sa':'';
+  el.className=`acal-day ${isOn?'avail':'unavail'} ${sunsat}`;
+  el.style.background=isOn?color:'';
   renderCal();
 }
-function setAllAvail(sid,val){
+function setAllAvailSess(sid,sess,val){
   const s=gs(sid);if(!s)return;
+  if(!s.lunchAvail)s.lunchAvail={};
+  if(!s.dinnerAvail)s.dinnerAvail={};
+  const availObj=sess==='lunch'?s.lunchAvail:s.dinnerAvail;
   const n=new Date(curY,curM+1,0).getDate();
-  for(let d=1;d<=n;d++)s.avail[dk(curY,curM,d)]=val;
-  const el=document.getElementById('avail-'+sid);if(el)el.outerHTML=buildAvailCal(s);
+  for(let d=1;d<=n;d++)availObj[dk(curY,curM,d)]=val;
+  const wrap=document.getElementById('avail-'+sid);
+  if(wrap)wrap.outerHTML=buildAvailCal(s);
   renderCal();
 }
-function clearAvail(sid){
+function clearAvailSess(sid,sess){
   const s=gs(sid);if(!s)return;
+  if(!s.lunchAvail)s.lunchAvail={};
+  if(!s.dinnerAvail)s.dinnerAvail={};
+  const availObj=sess==='lunch'?s.lunchAvail:s.dinnerAvail;
   const n=new Date(curY,curM+1,0).getDate();
-  for(let d=1;d<=n;d++)delete s.avail[dk(curY,curM,d)];
-  const el=document.getElementById('avail-'+sid);if(el)el.outerHTML=buildAvailCal(s);
+  for(let d=1;d<=n;d++)delete availObj[dk(curY,curM,d)];
+  const wrap=document.getElementById('avail-'+sid);
+  if(wrap)wrap.outerHTML=buildAvailCal(s);
   renderCal();
 }
+// 後方互換（LINE履歴再反映などで使用）
+function toggleAvail(sid,key,el){toggleAvailSess(sid,'lunch',key,el);toggleAvailSess(sid,'dinner',key,el);}
+function setAllAvail(sid,val){setAllAvailSess(sid,'lunch',val);setAllAvailSess(sid,'dinner',val);}
+function clearAvail(sid){clearAvailSess(sid,'lunch');clearAvailSess(sid,'dinner');}
 
 function renderStaff(){
   document.getElementById('staffTitle').textContent=`${curY}年${curM+1}月　スタッフ設定`;
@@ -841,7 +913,7 @@ function renderStaff(){
         <div><label class="flbl">🌙ディナー 出勤時刻</label><input type="time" class="finput" value="${s.defDinnerFrom||'18:00'}" onchange="updSt(${s.id},'defDinnerFrom',this.value)"></div>
         <div><label class="flbl">🌙ディナー 退勤時刻</label><input type="time" class="finput" value="${s.defDinnerTo||'22:00'}" onchange="updSt(${s.id},'defDinnerTo',this.value)"></div>
       </div>
-      <div id="avail-${s.id}">${buildAvailCal(s)}</div>`;
+      ${buildAvailCal(s)}`;
     // Drag events
     div.addEventListener('dragstart',onDragStart);
     div.addEventListener('dragover',onDragOver);
@@ -895,7 +967,7 @@ function onDragEnd(){
 function updRole(id,val){const s=gs(id);if(!s)return;s.roles=val==='KH'?['K','H']:[val];}
 function updSt(id,k,v){const s=gs(id);if(s)s[k]=v;}
 function addStaff(){
-  staff.push({id:nextId++,name:'新スタッフ',roles:['H'],lunchOk:true,dinnerOk:true,defLunchFrom:'11:00',defLunchTo:'15:00',defDinnerFrom:'18:00',defDinnerTo:'22:00',avail:{},maxDays:20});
+  staff.push({id:nextId++,name:'新スタッフ',roles:['H'],lunchOk:true,dinnerOk:true,defLunchFrom:'11:00',defLunchTo:'15:00',defDinnerFrom:'18:00',defDinnerTo:'22:00',avail:{},lunchAvail:{},dinnerAvail:{},maxDays:20});
   renderStaff();updatePasteStaff();renderCal();
 }
 function delStaff(id){
@@ -983,15 +1055,15 @@ function updatePasteStaff(){document.getElementById('pasteStaff').innerHTML=staf
 
 function initDefaultStaff(){
   staff=[
-    {id:1,name:'中村 伴樹',roles:['K'],lunchOk:true,dinnerOk:true,defLunchFrom:'11:00',defLunchTo:'15:00',defDinnerFrom:'18:00',defDinnerTo:'22:00',avail:{},maxDays:20},
-    {id:2,name:'中村 紀子',roles:['H'],lunchOk:true,dinnerOk:true,defLunchFrom:'11:00',defLunchTo:'15:00',defDinnerFrom:'18:00',defDinnerTo:'22:00',avail:{},maxDays:20},
-    {id:3,name:'牧野 羽詩',roles:['H'],lunchOk:true,dinnerOk:false,defLunchFrom:'11:00',defLunchTo:'15:00',defDinnerFrom:'18:00',defDinnerTo:'22:00',avail:{},maxDays:20},
-    {id:4,name:'住吉 千春',roles:['H','K'],lunchOk:true,dinnerOk:true,defLunchFrom:'11:00',defLunchTo:'15:00',defDinnerFrom:'18:00',defDinnerTo:'22:00',avail:{},maxDays:20},
-    {id:5,name:'前河内 美音',roles:['H'],lunchOk:true,dinnerOk:false,defLunchFrom:'11:00',defLunchTo:'15:00',defDinnerFrom:'18:00',defDinnerTo:'22:00',avail:{},maxDays:20},
-    {id:6,name:'矢富 可那子',roles:['K'],lunchOk:true,dinnerOk:false,defLunchFrom:'11:00',defLunchTo:'15:00',defDinnerFrom:'18:00',defDinnerTo:'22:00',avail:{},maxDays:20},
-    {id:7,name:'石橋 知加子',roles:['H'],lunchOk:true,dinnerOk:false,defLunchFrom:'11:00',defLunchTo:'15:00',defDinnerFrom:'18:00',defDinnerTo:'22:00',avail:{},maxDays:20},
-    {id:8,name:'吉川 悦子',roles:['H'],lunchOk:true,dinnerOk:false,defLunchFrom:'11:00',defLunchTo:'15:00',defDinnerFrom:'18:00',defDinnerTo:'22:00',avail:{},maxDays:20},
-    {id:9,name:'形山 ミカ',roles:['H'],lunchOk:true,dinnerOk:false,defLunchFrom:'11:00',defLunchTo:'15:00',defDinnerFrom:'18:00',defDinnerTo:'22:00',avail:{},maxDays:20},
+    {id:1,name:'中村 伴樹',roles:['K'],lunchOk:true,dinnerOk:true,defLunchFrom:'11:00',defLunchTo:'15:00',defDinnerFrom:'18:00',defDinnerTo:'22:00',avail:{},lunchAvail:{},dinnerAvail:{},maxDays:20},
+    {id:2,name:'中村 紀子',roles:['H'],lunchOk:true,dinnerOk:true,defLunchFrom:'11:00',defLunchTo:'15:00',defDinnerFrom:'18:00',defDinnerTo:'22:00',avail:{},lunchAvail:{},dinnerAvail:{},maxDays:20},
+    {id:3,name:'牧野 羽詩',roles:['H'],lunchOk:true,dinnerOk:false,defLunchFrom:'11:00',defLunchTo:'15:00',defDinnerFrom:'18:00',defDinnerTo:'22:00',avail:{},lunchAvail:{},dinnerAvail:{},maxDays:20},
+    {id:4,name:'住吉 千春',roles:['H','K'],lunchOk:true,dinnerOk:true,defLunchFrom:'11:00',defLunchTo:'15:00',defDinnerFrom:'18:00',defDinnerTo:'22:00',avail:{},lunchAvail:{},dinnerAvail:{},maxDays:20},
+    {id:5,name:'前河内 美音',roles:['H'],lunchOk:true,dinnerOk:false,defLunchFrom:'11:00',defLunchTo:'15:00',defDinnerFrom:'18:00',defDinnerTo:'22:00',avail:{},lunchAvail:{},dinnerAvail:{},maxDays:20},
+    {id:6,name:'矢富 可那子',roles:['K'],lunchOk:true,dinnerOk:false,defLunchFrom:'11:00',defLunchTo:'15:00',defDinnerFrom:'18:00',defDinnerTo:'22:00',avail:{},lunchAvail:{},dinnerAvail:{},maxDays:20},
+    {id:7,name:'石橋 知加子',roles:['H'],lunchOk:true,dinnerOk:false,defLunchFrom:'11:00',defLunchTo:'15:00',defDinnerFrom:'18:00',defDinnerTo:'22:00',avail:{},lunchAvail:{},dinnerAvail:{},maxDays:20},
+    {id:8,name:'吉川 悦子',roles:['H'],lunchOk:true,dinnerOk:false,defLunchFrom:'11:00',defLunchTo:'15:00',defDinnerFrom:'18:00',defDinnerTo:'22:00',avail:{},lunchAvail:{},dinnerAvail:{},maxDays:20},
+    {id:9,name:'形山 ミカ',roles:['H'],lunchOk:true,dinnerOk:false,defLunchFrom:'11:00',defLunchTo:'15:00',defDinnerFrom:'18:00',defDinnerTo:'22:00',avail:{},lunchAvail:{},dinnerAvail:{},maxDays:20},
   ];nextId=10;
 }
 
