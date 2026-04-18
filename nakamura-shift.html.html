@@ -262,7 +262,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#f7f3ee;color:#2c1f12;min-
     <button class="nbtn" onclick="chMonth(1);renderMonthly()">▶</button>
   </div>
   <div style="text-align:right;margin-bottom:9px">
-    <button class="nbtn" onclick="printMonthly()" style="font-size:.7rem;background:var(--green);color:#fff;border-color:var(--green)">🖨 印刷・PDF</button>
+    <button class="nbtn" onclick="printMonthly()" style="font-size:.7rem;background:#2060a0;color:#fff;border-color:#2060a0">🖨 印刷</button> <button class="nbtn" onclick="savePdfMonthly()" style="font-size:.7rem;background:var(--accent);color:#fff;border-color:var(--accent)">📄 PDF保存</button>
   </div>
   <div id="monthlyBody"></div>
 </div>
@@ -767,8 +767,8 @@ function renderMonthly(){
     for(let d=1;d<=daysIn;d++){
       const key=dk(y,m,d),pat=getDayPattern(key),dow=new Date(y,m,d).getDay();
       const lOn=pat==='both'||pat==='lunch_only';
-      if(dow===1){h+=`<td style="background:rgba(0,0,0,.04);border:1px solid var(--border)"></td>`;continue;}
-      if(!lOn){h+=`<td style="background:rgba(0,0,0,.03);border:1px solid var(--border)"></td>`;continue;}
+      if(dow===1){h+=`<td style="background:#f2ece0;text-align:center;border:1px solid var(--border);font-size:.46rem;color:var(--muted)">月休</td>`;continue;}
+      if(!lOn){h+=`<td style="background:#f0ead8;text-align:center;border:1px solid var(--border);font-size:.46rem;color:var(--muted)">休業</td>`;continue;}
       if(!canWork(s,key,'lunch')&&!dd(key).lunch.assignments.find(a=>a.staffId===s.id&&a.role)){
         h+=`<td style="background:rgba(184,48,48,.07);text-align:center;border:1px solid var(--border);color:var(--red);font-size:.56rem">✕</td>`;continue;
       }
@@ -781,8 +781,8 @@ function renderMonthly(){
     for(let d=1;d<=daysIn;d++){
       const key=dk(y,m,d),pat=getDayPattern(key),dow=new Date(y,m,d).getDay();
       const dOn=pat==='both'||pat==='dinner_only';
-      if(dow===1){h+=`<td style="background:rgba(0,0,0,.04);border:1px solid var(--border)"></td>`;continue;}
-      if(!dOn){h+=`<td style="background:rgba(0,0,0,.03);border:1px solid var(--border)"></td>`;continue;}
+      if(dow===1){h+=`<td style="background:#f2ece0;text-align:center;border:1px solid var(--border);font-size:.46rem;color:var(--muted)">月休</td>`;continue;}
+      if(!dOn){h+=`<td style="background:#f0ead8;text-align:center;border:1px solid var(--border);font-size:.46rem;color:var(--muted)">休業</td>`;continue;}
       if(!canWork(s,key,'dinner')&&!dd(key).dinner.assignments.find(a=>a.staffId===s.id&&a.role)){
         h+=`<td style="background:rgba(184,48,48,.07);text-align:center;border:1px solid var(--border);color:var(--red);font-size:.56rem">✕</td>`;continue;
       }
@@ -795,7 +795,7 @@ function renderMonthly(){
   h+=`<tr style="background:#2c1f12"><td colspan="2" style="padding:4px 7px;color:#f7f3ee;font-weight:500;position:sticky;left:0;background:#2c1f12;border:1px solid #444;font-size:.6rem">人数</td>`;
   for(let d=1;d<=daysIn;d++){
     const key=dk(y,m,d),pat=getDayPattern(key),dow=new Date(y,m,d).getDay();
-    if(dow===1){h+=`<td style="border:1px solid #444;text-align:center;color:#555;font-size:.52rem">休</td>`;continue;}
+    if(dow===1){h+=`<td style="border:1px solid #444;text-align:center;color:#666;font-size:.46rem;background:rgba(255,255,255,.05)">月休</td>`;continue;}
     const lOn=pat==='both'||pat==='lunch_only',dOn=pat==='both'||pat==='dinner_only';
     const lCnt=dd(key).lunch.assignments.filter(a=>a.role).length,dCnt=dd(key).dinner.assignments.filter(a=>a.role).length;
     let cell='';
@@ -812,9 +812,42 @@ function renderMonthly(){
   document.getElementById('monthlyBody').innerHTML=h;
 }
 function printMonthly(){
+  const origTitle=document.title;
+  document.title=`なかむらシフト_${curY}年${curM+1}月`;
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('print-target'));
   document.getElementById('page-monthly').classList.add('print-target');
-  setTimeout(()=>{window.print();setTimeout(()=>document.querySelectorAll('.page').forEach(p=>p.classList.remove('print-target')),1000);},300);
+  setTimeout(()=>{
+    window.print();
+    setTimeout(()=>{
+      document.querySelectorAll('.page').forEach(p=>p.classList.remove('print-target'));
+      document.title=origTitle;
+    },1000);
+  },300);
+}
+function savePdfMonthly(){
+  const origTitle=document.title;
+  document.title=`なかむらシフト_${curY}年${curM+1}月`;
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('print-target'));
+  document.getElementById('page-monthly').classList.add('print-target');
+  // PDF保存ダイアログを開く（印刷ダイアログでPDFを選択）
+  const style=document.createElement('style');
+  style.id='pdf-hint-style';
+  style.textContent=`
+    @media print{
+      body::before{content:'';display:none;}
+    }
+  `;
+  document.head.appendChild(style);
+  alert('印刷ダイアログが開きます。\nプリンター欄で「PDFに保存」または「Microsoft Print to PDF」を選んでください。');
+  setTimeout(()=>{
+    window.print();
+    setTimeout(()=>{
+      document.querySelectorAll('.page').forEach(p=>p.classList.remove('print-target'));
+      document.title=origTitle;
+      const s=document.getElementById('pdf-hint-style');
+      if(s)s.remove();
+    },1000);
+  },300);
 }
 
 // ============================================================
