@@ -1253,11 +1253,93 @@ function doPrint(){
   },500);
 }
 
+function buildHalfTable(y, m, fromDay, toDay){
+  const DOW=['日','月','火','水','木','金','土'];
+  const daysIn=new Date(y,m+1,0).getDate();
+  const endDay=Math.min(toDay,daysIn);
+
+  // ヘッダー行
+  let h='<table><thead><tr>';
+  h+='<th style="text-align:left;min-width:80px;width:90px">スタッフ</th>';
+  for(let d=fromDay;d<=endDay;d++){
+    const key=dk(y,m,d);
+    const dow=new Date(y,m,d).getDay();
+    const isH=JP_HOL.has(key);
+    const isSu=dow===0,isSa=dow===6;
+    const col=isSu||isH?'#c03030':isSa?'#2860a8':'#1e1810';
+    const bg=!dd(key).open?'#eee':'#f5f0e8';
+    h+=`<th style="color:${col};background:${bg};min-width:32px;font-size:9pt">${d}<br><span style="font-size:7pt">${DOW[dow]}${isH?'祝':''}</span></th>`;
+  }
+  h+='<th style="min-width:36px;background:#f5f0e8">合計</th>';
+  h+='</tr></thead><tbody>';
+
+  // 各スタッフ行
+  staff.forEach(s=>{
+    let rowTotal=0;
+    h+=`<tr><td style="text-align:left;padding:3px 6px;font-weight:500;background:#f5f0e8;white-space:nowrap;overflow:hidden;font-size:9pt">${s.name}</td>`;
+    for(let d=fromDay;d<=endDay;d++){
+      const key=dk(y,m,d);
+      const data=dd(key);
+      const dow=new Date(y,m,d).getDay();
+      const isOpen=data.open;
+      const asgn=data.assignments.find(a=>a.staffId===s.id&&a.role);
+      const avail=isAvail(s,key);
+      const isSu=dow===0,isSa=dow===6,isH=JP_HOL.has(key);
+      const wkend=isSu||isSa||isH;
+      let cell='',bg='';
+      if(!isOpen){
+        bg='#f0f0f0';cell='';
+      } else if(asgn){
+        rowTotal++;
+        const ro=ROLES.find(r=>r.id===asgn.role);
+        bg=ro?ro.color+'33':'rgba(58,138,90,.2)';
+        cell=`<b style="color:${ro?ro.color:'#3a8a5a'};font-size:9pt">${asgn.role}</b>`;
+      } else if(!avail){
+        bg='rgba(192,48,48,.1)';
+        cell='<span style="color:#c03030;font-size:10pt">✕</span>';
+      } else {
+        bg=wkend?'rgba(0,0,0,.03)':'';
+        cell='<span style="color:#ccc;font-size:10pt">✕</span>';
+      }
+      h+=`<td style="background:${bg};text-align:center;padding:2px">${cell}</td>`;
+    }
+    const max=s.maxDays||20;
+    // 月全体のカウント
+    const total=countDays(s.id);
+    const col=total>=max?'#c03030':total>=max*0.8?'#c08020':'#3a8a5a';
+    h+=`<td style="text-align:center;font-weight:700;color:${col};background:#f5f0e8;font-size:9pt">${rowTotal}</td>`;
+    h+='</tr>';
+  });
+
+  // 出勤人数行
+  h+='<tr style="background:#1e1810"><td style="color:#f5f0e8;padding:3px 6px;font-size:8pt">出勤人数</td>';
+  for(let d=fromDay;d<=endDay;d++){
+    const key=dk(y,m,d);
+    const data=dd(key);
+    if(!data.open){h+='<td style="color:#555;border:1px solid #333">—</td>';continue;}
+    const cnt=data.assignments.filter(a=>a.role).length;
+    const col=cnt>=4?'#7ff0a0':cnt>=2?'#f0c87f':'#f08080';
+    h+=`<td style="color:${col};font-weight:700;border:1px solid #333;font-size:9pt">${cnt}</td>`;
+  }
+  h+='<td style="border:1px solid #333"></td></tr>';
+  h+='</tbody></table>';
+  return h;
+}
+
 function savePDF(){
   if(monthlyView!=='matrix') setMonthlyView('matrix');
   setTimeout(()=>{
-    const title=document.getElementById('monthlyTitle').textContent;
-    const body=document.getElementById('monthlyBody').innerHTML;
+    const y=curY, m=curM;
+    const daysIn=new Date(y,m+1,0).getDate();
+    const title=`${y}年${m+1}月　月間出勤表`;
+
+    // 前半・後半テーブルを生成
+    const table1=buildHalfTable(y,m,1,15);
+    const table2=buildHalfTable(y,m,16,daysIn);
+
+    // 凡例
+    const legend=ROLES.map(r=>`<span style="display:inline-flex;align-items:center;gap:3px;margin-right:8px;font-size:8pt"><span style="display:inline-block;width:18px;height:14px;border-radius:2px;background:${r.color}33;color:${r.color};font-weight:700;text-align:center;font-size:7pt;line-height:14px">${r.id}</span>${r.name}</span>`).join('');
+
     const html=`<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -1266,31 +1348,59 @@ function savePDF(){
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:'Noto Sans JP',sans-serif;padding:10px;background:#fff;color:#1e1810;font-size:8.5pt;}
-h2{font-size:11pt;color:#b8622a;margin-bottom:8px;font-weight:700;}
-table{border-collapse:collapse;width:100%;font-size:7pt;table-layout:fixed;}
-th,td{border:1px solid #ddd0b8;padding:2px 2px;text-align:center;overflow:hidden;}
+body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#1e1810;}
+.page{padding:8mm;width:297mm;min-height:210mm;}
+h2{font-size:13pt;color:#b8622a;margin-bottom:6px;font-weight:700;}
+.sub{font-size:9pt;color:#8a7a60;margin-bottom:8px;}
+table{border-collapse:collapse;width:100%;}
+th,td{border:1px solid #ddd0b8;text-align:center;padding:2px;}
 th{background:#f5f0e8;font-weight:600;}
-.summary-wrap{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;}
-.summary-wrap>div{background:#f5f0e8;border-radius:4px;padding:3px 6px;font-size:7pt;}
+.legend{margin-top:8px;display:flex;flex-wrap:wrap;gap:2px;}
+.print-btn{
+  position:fixed;top:10px;right:10px;
+  background:#3a8a5a;color:#fff;border:none;border-radius:8px;
+  padding:10px 20px;font-size:11pt;font-family:inherit;cursor:pointer;font-weight:700;
+  box-shadow:0 2px 8px rgba(0,0,0,.2);
+}
+@media print{
+  .print-btn{display:none!important;}
+  .page{page-break-after:always;}
+  .page:last-child{page-break-after:auto;}
+  @page{size:A4 landscape;margin:8mm;}
+}
 </style>
 </head>
 <body>
-<h2>${title}</h2>
-${body}
-<script>window.onload=function(){window.print();window.onafterprint=function(){window.close();};};<\/script>
+<button class="print-btn" onclick="window.print()">🖨 印刷 / PDF保存</button>
+
+<div class="page">
+  <h2>${title}　前半（1〜15日）</h2>
+  ${table1}
+  <div class="legend">${legend}
+    <span style="font-size:8pt;margin-right:8px"><span style="color:#c03030">✕</span> 欠勤希望</span>
+    <span style="font-size:8pt"><span style="color:#ccc">✕</span> 未アサイン</span>
+  </div>
+</div>
+
+<div class="page">
+  <h2>${title}　後半（16〜${daysIn}日）</h2>
+  ${table2}
+  <div class="legend">${legend}
+    <span style="font-size:8pt;margin-right:8px"><span style="color:#c03030">✕</span> 欠勤希望</span>
+    <span style="font-size:8pt"><span style="color:#ccc">✕</span> 未アサイン</span>
+  </div>
+</div>
+
 </body>
 </html>`;
+
     const blob=new Blob([html],{type:'text/html;charset=utf-8'});
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
     a.href=url;
-    a.download=title.replace(/\s/g,'_')+'.html';
+    a.download=title+'_出勤表.html';
     a.click();
     URL.revokeObjectURL(url);
-    setTimeout(()=>{
-      alert('ダウンロードしたHTMLファイルを開いて\n「ファイル」→「PDFとして保存」または\nCtrl+P → PDFに保存\nしてください。');
-    },500);
   },300);
 }
 
