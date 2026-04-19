@@ -182,13 +182,18 @@ body{font-family:'Noto Sans JP',sans-serif;background:#f7f3ee;color:#2c1f12;min-
   .hdr,.tabs,.ov{display:none!important;}
   .page{display:none!important;}
   .page.print-target{display:block!important;}
-  .page.print-target .mnav,
+  /* サマリー・凡例・ナビを非表示にして表だけ印刷 */
+  #monthlySummary{display:none!important;}
+  #monthlyLegend{display:none!important;}
+  .page.print-target .mnav{display:none!important;}
   .page.print-target>div:first-child+div{display:none!important;}
-  #monthlyBody>div:nth-child(1){page-break-after:always;}
-  #monthlyBody>div:nth-child(n+2){page-break-before:auto;}
+  /* 前半テーブルの後で改ページ */
+  #halfTable1{page-break-after:always;}
+  #halfTable2{page-break-before:always;}
+  /* 背景色・色を強制印刷 */
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important;}
   @page{size:A4 landscape;margin:6mm;}
-  body{font-size:10pt;}
-  table{font-size:8pt!important;}
+  body{font-size:9pt;}
 }
 </style>
 </head>
@@ -848,7 +853,7 @@ function renderMonthly(){
   const half2start = mid+1;
 
   // サマリー
-  let h=`<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:10px">`;
+  let h=`<div id="monthlySummary" style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:10px">`;
   h+=`<div style="font-size:.72rem;font-weight:700;color:var(--accent);margin-bottom:6px">📊 今月の出勤集計</div>`;
   h+=`<div style="display:flex;flex-wrap:wrap;gap:5px">`;
   staff.forEach(s=>{
@@ -862,7 +867,7 @@ function renderMonthly(){
   h+=`</div></div>`;
 
   // 凡例
-  h+=`<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;font-size:.65rem">`;
+  h+=`<div id="monthlyLegend" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;font-size:.65rem">`;
   h+=`<span style="background:#f5a800;color:#fff;padding:2px 9px;border-radius:4px;font-weight:700">🌞 ランチ出勤</span>`;
   h+=`<span style="background:#6040b0;color:#fff;padding:2px 9px;border-radius:4px;font-weight:700">🌙 ディナー出勤</span>`;
   h+=`<span style="background:#ffe8b0;color:#7a4400;padding:2px 9px;border-radius:4px;font-weight:700">K/H ランチ役割</span>`;
@@ -871,14 +876,14 @@ function renderMonthly(){
   h+=`</div>`;
 
   // 前半（1〜mid日）
-  h+=`<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:14px;overflow-x:auto">`;
-  h+=`<div style="font-size:.75rem;font-weight:700;color:var(--accent);margin-bottom:8px">📅 前半　1日〜${half1end}日</div>`;
+  h+=`<div id="halfTable1" style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:14px;overflow-x:auto">`;
+  h+=`<div style="font-size:.75rem;font-weight:700;color:var(--accent);margin-bottom:8px">📅 前半　1日〜${half1end}日　（${y}年${m+1}月）</div>`;
   h+=buildHalfTable(y,m,1,half1end);
   h+=`</div>`;
 
   // 後半（mid+1〜末日）
-  h+=`<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:14px;overflow-x:auto">`;
-  h+=`<div style="font-size:.75rem;font-weight:700;color:var(--accent);margin-bottom:8px">📅 後半　${half2start}日〜${daysIn}日</div>`;
+  h+=`<div id="halfTable2" style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:14px;overflow-x:auto">`;
+  h+=`<div style="font-size:.75rem;font-weight:700;color:var(--accent);margin-bottom:8px">📅 後半　${half2start}日〜${daysIn}日　（${y}年${m+1}月）</div>`;
   h+=buildHalfTable(y,m,half2start,daysIn);
   h+=`</div>`;
 
