@@ -272,8 +272,39 @@ body{font-family:'Noto Sans JP',sans-serif;background:#f7f3ee;color:#2c1f12;min-
     <div class="mtitle" id="monthlyTitle"></div>
     <button class="nbtn" onclick="chMonth(1);renderMonthly()">▶</button>
   </div>
-  <div style="text-align:right;margin-bottom:9px">
-    <button class="nbtn" onclick="printMonthly()" style="font-size:.7rem;background:#2060a0;color:#fff;border-color:#2060a0">🖨 印刷</button> <button class="nbtn" onclick="savePdfMonthly()" style="font-size:.7rem;background:var(--accent);color:#fff;border-color:var(--accent)">📄 PDF保存</button>
+  <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center;margin-bottom:9px;flex-wrap:wrap">
+    <button class="nbtn" onclick="printMonthly()" style="font-size:.7rem;background:#2060a0;color:#fff;border-color:#2060a0">🖨 印刷</button>
+    <button class="nbtn" onclick="showPdfGuide()" style="font-size:.7rem;background:var(--accent);color:#fff;border-color:var(--accent)">📄 PDF保存</button>
+  </div>
+  <!-- PDF操作ガイド -->
+  <div id="pdfGuide" style="display:none;background:#fff8f0;border:2px solid var(--accent);border-radius:12px;padding:14px;margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <span style="font-size:.82rem;font-weight:700;color:var(--accent)">📄 PDF保存の手順</span>
+      <button onclick="document.getElementById('pdfGuide').style.display='none'" style="background:var(--surface2);border:none;border-radius:50%;width:24px;height:24px;cursor:pointer;font-size:.9rem">✕</button>
+    </div>
+    <div style="font-size:.75rem;line-height:2;color:#2c1f12">
+      <div style="background:#fff;border-radius:8px;padding:8px 12px;margin-bottom:8px;border-left:4px solid #2060a0">
+        <b>💻 PC（Windows）の場合</b><br>
+        ① 下の「印刷ダイアログを開く」ボタンをクリック<br>
+        ② プリンターの欄で <b>「Microsoft Print to PDF」</b> を選択<br>
+        ③「印刷」ボタンをクリック → 保存場所を選んで保存
+      </div>
+      <div style="background:#fff;border-radius:8px;padding:8px 12px;margin-bottom:8px;border-left:4px solid #30a060">
+        <b>🍎 Mac の場合</b><br>
+        ① 下の「印刷ダイアログを開く」ボタンをクリック<br>
+        ② 左下の <b>「PDF」</b> ボタンをクリック<br>
+        ③「PDFとして保存」を選択 → 保存
+      </div>
+      <div style="background:#fff;border-radius:8px;padding:8px 12px;border-left:4px solid #a060c0">
+        <b>📱 スマホ（iPhone/Android）の場合</b><br>
+        ① 下の「印刷ダイアログを開く」ボタンをタップ<br>
+        ② プリンターを選ぶ画面で <b>ピンチアウト（指を広げる）</b><br>
+        ③ PDF保存のオプションが表示されます
+      </div>
+    </div>
+    <button onclick="startPdfPrint()" style="background:var(--accent);border:none;color:#fff;border-radius:8px;padding:10px;width:100%;font-family:inherit;font-size:.82rem;font-weight:700;cursor:pointer;margin-top:10px">
+      🖨 印刷ダイアログを開く（前半・後半 各1ページ）
+    </button>
   </div>
   <div id="monthlyBody"></div>
 </div>
@@ -902,29 +933,23 @@ function printMonthly(){
     },1000);
   },300);
 }
-function savePdfMonthly(){
+function showPdfGuide(){
+  renderMonthly(); // 最新状態に更新
+  const guide=document.getElementById('pdfGuide');
+  guide.style.display=guide.style.display==='none'?'block':'none';
+}
+function startPdfPrint(){
+  document.getElementById('pdfGuide').style.display='none';
   const origTitle=document.title;
   document.title=`なかむらシフト_${curY}年${curM+1}月`;
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('print-target'));
   document.getElementById('page-monthly').classList.add('print-target');
-  // PDF保存ダイアログを開く（印刷ダイアログでPDFを選択）
-  const style=document.createElement('style');
-  style.id='pdf-hint-style';
-  style.textContent=`
-    @media print{
-      body::before{content:'';display:none;}
-    }
-  `;
-  document.head.appendChild(style);
-  alert('印刷ダイアログが開きます。\nプリンター欄で「PDFに保存」または「Microsoft Print to PDF」を選んでください。');
   setTimeout(()=>{
     window.print();
     setTimeout(()=>{
       document.querySelectorAll('.page').forEach(p=>p.classList.remove('print-target'));
       document.title=origTitle;
-      const s=document.getElementById('pdf-hint-style');
-      if(s)s.remove();
-    },1000);
+    },1500);
   },300);
 }
 
