@@ -182,7 +182,13 @@ body{font-family:'Noto Sans JP',sans-serif;background:#f7f3ee;color:#2c1f12;min-
   .hdr,.tabs,.ov{display:none!important;}
   .page{display:none!important;}
   .page.print-target{display:block!important;}
-  @page{size:A4 landscape;margin:8mm;}
+  .page.print-target .mnav,
+  .page.print-target>div:first-child+div{display:none!important;}
+  #monthlyBody>div:nth-child(1){page-break-after:always;}
+  #monthlyBody>div:nth-child(n+2){page-break-before:auto;}
+  @page{size:A4 landscape;margin:6mm;}
+  body{font-size:10pt;}
+  table{font-size:8pt!important;}
 }
 </style>
 </head>
@@ -745,70 +751,143 @@ function deleteHist(hid){
 // ============================================================
 // MONTHLY REPORT
 // ============================================================
-function renderMonthly(){
-  const y=curY,m=curM,daysIn=new Date(y,m+1,0).getDate(),DOW=['日','月','火','水','木','金','土'];
-  document.getElementById('monthlyTitle').textContent=`${y}年${m+1}月　月間出勤表`;
-  let h=`<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:11px;margin-bottom:11px"><div style="display:flex;flex-wrap:wrap;gap:5px">`;
-  staff.forEach(s=>{const cnt=countDays(s.id),max=s.maxDays||20;h+=`<div style="background:var(--surface2);border-radius:6px;padding:4px 7px;font-size:.66rem"><div style="font-weight:500">${s.name}</div><div style="font-weight:700;color:${cnt>=max?'var(--red)':'var(--green)'}">${cnt}<span style="color:var(--muted);font-weight:400">/${max}日</span></div></div>`;});
-  h+=`</div></div>`;
-  h+=`<div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:.58rem;min-width:${daysIn*21+130}px;width:100%">`;
-  h+=`<thead><tr><th style="background:var(--surface2);padding:4px 7px;text-align:left;position:sticky;left:0;min-width:88px;border:1px solid var(--border)">スタッフ</th>`;
-  h+=`<th style="background:var(--surface2);padding:3px;text-align:center;border:1px solid var(--border);min-width:22px;font-size:.52rem">区分</th>`;
-  for(let d=1;d<=daysIn;d++){
+function buildHalfTable(y, m, startDay, endDay){
+  const DOW=['日','月','火','水','木','金','土'];
+  const days = endDay - startDay + 1;
+
+  let h = `<table style="border-collapse:collapse;font-size:.72rem;width:100%;table-layout:fixed;">`;
+
+  // ── ヘッダー行 ──
+  h += `<thead><tr>`;
+  h += `<th style="background:#2c1f12;color:#e8c870;padding:5px 6px;text-align:left;width:80px;border:1px solid #444;font-size:.68rem">スタッフ</th>`;
+  h += `<th style="background:#2c1f12;color:#e8c870;padding:3px;text-align:center;width:28px;border:1px solid #444;font-size:.6rem">区分</th>`;
+  for(let d=startDay;d<=endDay;d++){
     const key=dk(y,m,d),dow=new Date(y,m,d).getDay(),isH=JP_HOL.has(key);
-    const col=dow===0||isH?'var(--red)':dow===6?'var(--blue)':'inherit';
-    h+=`<th style="background:var(--surface2);padding:2px 1px;text-align:center;border:1px solid var(--border);min-width:21px;color:${col}">${d}<br><span style="font-size:.44rem">${DOW[dow]}</span></th>`;
+    const col=dow===0||isH?'#ff8080':dow===6?'#80b0ff':'#e8c870';
+    const bg=dow===1?'#1a1008':'#2c1f12';
+    h+=`<th style="background:${bg};color:${col};padding:3px 2px;text-align:center;border:1px solid #444;font-size:.65rem;width:${100/days}%">${d}<br><span style="font-size:.52rem">${DOW[dow]}</span></th>`;
   }
-  h+=`<th style="background:var(--surface2);padding:3px;text-align:center;border:1px solid var(--border);min-width:26px">計</th></tr></thead><tbody>`;
+  h += `<th style="background:#2c1f12;color:#e8c870;padding:3px;text-align:center;width:26px;border:1px solid #444;font-size:.62rem">計</th>`;
+  h += `</tr></thead><tbody>`;
+
+  // ── スタッフ行 ──
   staff.forEach(s=>{
     let tL=0,tD=0;
-    h+=`<tr><td rowspan="2" style="background:var(--surface2);padding:4px 7px;font-weight:500;position:sticky;left:0;border:1px solid var(--border);white-space:nowrap;vertical-align:middle;font-size:.66rem">${s.name}</td>`;
-    h+=`<td style="background:rgba(212,130,10,.12);padding:2px 3px;text-align:center;border:1px solid var(--border);font-size:.48rem;font-weight:700;color:var(--lunch);white-space:nowrap">🌞昼</td>`;
-    for(let d=1;d<=daysIn;d++){
+
+    // 🌞 ランチ行
+    h+=`<tr>`;
+    h+=`<td rowspan="2" style="background:#fff8f0;padding:4px 6px;font-weight:700;border:1px solid var(--border);white-space:nowrap;vertical-align:middle;font-size:.7rem;border-left:4px solid #d4820a">${s.name}</td>`;
+    h+=`<td style="background:#fff3e0;padding:3px 4px;text-align:center;border:1px solid var(--border);font-size:.6rem;font-weight:700;color:#b06000;white-space:nowrap">🌞昼</td>`;
+    for(let d=startDay;d<=endDay;d++){
       const key=dk(y,m,d),pat=getDayPattern(key),dow=new Date(y,m,d).getDay();
       const lOn=pat==='both'||pat==='lunch_only';
-      if(dow===1){h+=`<td style="background:#f2ece0;text-align:center;border:1px solid var(--border);font-size:.46rem;color:var(--muted)">月休</td>`;continue;}
-      if(!lOn){h+=`<td style="background:#f0ead8;text-align:center;border:1px solid var(--border);font-size:.46rem;color:var(--muted)">休業</td>`;continue;}
-      if(!canWork(s,key,'lunch')&&!dd(key).lunch.assignments.find(a=>a.staffId===s.id&&a.role)){
-        h+=`<td style="background:rgba(184,48,48,.07);text-align:center;border:1px solid var(--border);color:var(--red);font-size:.56rem">✕</td>`;continue;
-      }
+      if(dow===1){h+=`<td style="background:#f0e8d8;text-align:center;border:1px solid var(--border);font-size:.55rem;color:#aaa">月休</td>`;continue;}
+      if(!lOn){h+=`<td style="background:#f5efe5;text-align:center;border:1px solid var(--border);font-size:.55rem;color:#bbb">休業</td>`;continue;}
       const asgn=dd(key).lunch.assignments.find(a=>a.staffId===s.id&&a.role);
-      if(asgn){tL++;const ro=ROLES.find(r=>r.id===asgn.role);h+=`<td style="text-align:center;padding:1px;border:1px solid var(--border);background:${ro?ro.color+'22':''};font-weight:700;color:${ro?ro.color:'var(--green)'};font-size:.6rem">${asgn.role}</td>`;}
-      else{h+=`<td style="text-align:center;border:1px solid var(--border);color:#ccc;font-size:.58rem">·</td>`;}
+      if(asgn){
+        tL++;
+        const ro=ROLES.find(r=>r.id===asgn.role);
+        const bg=ro?(ro.id==='K'?'#e8f5e0':'#e0eeff'):'#e8f5e0';
+        const fc=ro?(ro.id==='K'?'#2a6020':'#1040a0'):'#2a6020';
+        h+=`<td style="text-align:center;padding:2px;border:1px solid var(--border);background:${bg};font-weight:700;color:${fc};font-size:.72rem">${asgn.role}</td>`;
+      } else if(!canWork(s,key,'lunch')){
+        h+=`<td style="background:#fff0f0;text-align:center;border:1px solid var(--border);color:#cc4444;font-size:.62rem">✕</td>`;
+      } else {
+        h+=`<td style="text-align:center;border:1px solid var(--border);color:#ddd;font-size:.62rem">·</td>`;
+      }
     }
-    h+=`<td rowspan="2" style="text-align:center;padding:2px;border:1px solid var(--border);background:var(--surface2);font-weight:700;vertical-align:middle;font-size:.66rem;color:var(--green)">—</td></tr>`;
-    h+=`<tr><td style="background:rgba(96,64,160,.12);padding:2px 3px;text-align:center;border:1px solid var(--border);font-size:.48rem;font-weight:700;color:var(--dinner);white-space:nowrap">🌙夜</td>`;
-    for(let d=1;d<=daysIn;d++){
+    h+=`<td rowspan="2" style="text-align:center;padding:2px;border:1px solid var(--border);background:#f5f0e8;font-weight:700;vertical-align:middle;font-size:.7rem;color:#2c1f12">${tL+tD||'·'}</td>`;
+    h+=`</tr>`;
+
+    // 🌙 ディナー行
+    h+=`<tr>`;
+    h+=`<td style="background:#f0eeff;padding:3px 4px;text-align:center;border:1px solid var(--border);font-size:.6rem;font-weight:700;color:#5030a0;white-space:nowrap">🌙夜</td>`;
+    for(let d=startDay;d<=endDay;d++){
       const key=dk(y,m,d),pat=getDayPattern(key),dow=new Date(y,m,d).getDay();
       const dOn=pat==='both'||pat==='dinner_only';
-      if(dow===1){h+=`<td style="background:#f2ece0;text-align:center;border:1px solid var(--border);font-size:.46rem;color:var(--muted)">月休</td>`;continue;}
-      if(!dOn){h+=`<td style="background:#f0ead8;text-align:center;border:1px solid var(--border);font-size:.46rem;color:var(--muted)">休業</td>`;continue;}
-      if(!canWork(s,key,'dinner')&&!dd(key).dinner.assignments.find(a=>a.staffId===s.id&&a.role)){
-        h+=`<td style="background:rgba(184,48,48,.07);text-align:center;border:1px solid var(--border);color:var(--red);font-size:.56rem">✕</td>`;continue;
-      }
+      if(dow===1){h+=`<td style="background:#f0e8d8;text-align:center;border:1px solid var(--border);font-size:.55rem;color:#aaa">月休</td>`;continue;}
+      if(!dOn){h+=`<td style="background:#f5efe5;text-align:center;border:1px solid var(--border);font-size:.55rem;color:#bbb">休業</td>`;continue;}
       const asgn=dd(key).dinner.assignments.find(a=>a.staffId===s.id&&a.role);
-      if(asgn){tD++;const ro=ROLES.find(r=>r.id===asgn.role);h+=`<td style="text-align:center;padding:1px;border:1px solid var(--border);background:${ro?ro.color+'22':''};font-weight:700;color:${ro?ro.color:'var(--green)'};font-size:.6rem">${asgn.role}</td>`;}
-      else{h+=`<td style="text-align:center;border:1px solid var(--border);color:#ccc;font-size:.58rem">·</td>`;}
+      if(asgn){
+        tD++;
+        const ro=ROLES.find(r=>r.id===asgn.role);
+        const bg=ro?(ro.id==='K'?'#d8f0d0':'#d8e8ff'):'#d8f0d0';
+        const fc=ro?(ro.id==='K'?'#1a5010':'#0a3090'):'#1a5010';
+        h+=`<td style="text-align:center;padding:2px;border:1px solid var(--border);background:${bg};font-weight:700;color:${fc};font-size:.72rem">${asgn.role}</td>`;
+      } else if(!canWork(s,key,'dinner')){
+        h+=`<td style="background:#fff0f0;text-align:center;border:1px solid var(--border);color:#cc4444;font-size:.62rem">✕</td>`;
+      } else {
+        h+=`<td style="text-align:center;border:1px solid var(--border);color:#ddd;font-size:.62rem">·</td>`;
+      }
     }
     h+=`</tr>`;
   });
-  h+=`<tr style="background:#2c1f12"><td colspan="2" style="padding:4px 7px;color:#f7f3ee;font-weight:500;position:sticky;left:0;background:#2c1f12;border:1px solid #444;font-size:.6rem">人数</td>`;
-  for(let d=1;d<=daysIn;d++){
+
+  // ── 出勤人数行 ──
+  h+=`<tr style="background:#2c1f12">`;
+  h+=`<td colspan="2" style="padding:4px 6px;color:#e8c870;font-weight:700;border:1px solid #444;font-size:.65rem">出勤人数</td>`;
+  for(let d=startDay;d<=endDay;d++){
     const key=dk(y,m,d),pat=getDayPattern(key),dow=new Date(y,m,d).getDay();
-    if(dow===1){h+=`<td style="border:1px solid #444;text-align:center;color:#666;font-size:.46rem;background:rgba(255,255,255,.05)">月休</td>`;continue;}
+    if(dow===1){h+=`<td style="border:1px solid #444;text-align:center;color:#666;font-size:.52rem">月休</td>`;continue;}
     const lOn=pat==='both'||pat==='lunch_only',dOn=pat==='both'||pat==='dinner_only';
-    const lCnt=dd(key).lunch.assignments.filter(a=>a.role).length,dCnt=dd(key).dinner.assignments.filter(a=>a.role).length;
+    const lCnt=dd(key).lunch.assignments.filter(a=>a.role).length;
+    const dCnt=dd(key).dinner.assignments.filter(a=>a.role).length;
     let cell='';
-    if(lOn)cell+=`<span style="font-size:.46rem;color:#c0e8a0;display:block">${lCnt}</span>`;
-    if(dOn)cell+=`<span style="font-size:.46rem;color:#c0a8ff;display:block">${dCnt}</span>`;
-    if(!lOn&&!dOn)cell='<span style="color:#555">—</span>';
-    h+=`<td style="text-align:center;border:1px solid #444;font-weight:700">${cell}</td>`;
+    if(lOn) cell+=`<span style="font-size:.52rem;color:#90e060;display:block;line-height:1.3">${lCnt}人</span>`;
+    if(dOn) cell+=`<span style="font-size:.52rem;color:#a090ff;display:block;line-height:1.3">${dCnt}人</span>`;
+    if(!lOn&&!dOn) cell=`<span style="color:#555;font-size:.52rem">休業</span>`;
+    h+=`<td style="text-align:center;border:1px solid #444;padding:2px">${cell}</td>`;
   }
-  h+=`<td style="border:1px solid #444;text-align:center;color:#f7f3ee;font-weight:700;font-size:.6rem">${staff.reduce((acc,s)=>acc+countDays(s.id),0)}</td></tr>`;
-  h+=`</tbody></table></div>`;
-  h+=`<div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:9px;font-size:.6rem;color:var(--muted)">`;
-  ROLES.forEach(r=>h+=`<span><b style="color:${r.color}">${r.id}</b> ${r.name}</span>`);
-  h+=`<span><b style="color:var(--red)">✕</b> 欠勤/セッション不可</span><span style="color:var(--lunch)">🌞昼行</span> / <span style="color:var(--dinner)">🌙夜行</span></div>`;
+  h+=`<td style="border:1px solid #444;text-align:center;color:#e8c870;font-weight:700;font-size:.62rem">—</td>`;
+  h+=`</tr>`;
+
+  h+=`</tbody></table>`;
+  return h;
+}
+
+function renderMonthly(){
+  const y=curY,m=curM,daysIn=new Date(y,m+1,0).getDate();
+  document.getElementById('monthlyTitle').textContent=`${y}年${m+1}月　月間出勤表`;
+
+  const mid = Math.ceil(daysIn/2); // 前半終わり日
+  const half1end = mid;
+  const half2start = mid+1;
+
+  // サマリー
+  let h=`<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:10px">`;
+  h+=`<div style="font-size:.72rem;font-weight:700;color:var(--accent);margin-bottom:6px">📊 今月の出勤集計</div>`;
+  h+=`<div style="display:flex;flex-wrap:wrap;gap:5px">`;
+  staff.forEach(s=>{
+    const cnt=countDays(s.id),max=s.maxDays||20;
+    const col=cnt>=max?'var(--red)':cnt>=max*0.8?'var(--gold)':'var(--green)';
+    h+=`<div style="background:var(--surface2);border-radius:6px;padding:4px 9px;font-size:.68rem;border-left:3px solid ${col}">
+      <span style="font-weight:600">${s.name}</span>
+      <span style="color:${col};font-weight:700;margin-left:6px">${cnt}</span><span style="color:var(--muted);font-size:.6rem">/${max}日</span>
+    </div>`;
+  });
+  h+=`</div></div>`;
+
+  // 凡例
+  h+=`<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;font-size:.65rem">`;
+  h+=`<span style="background:#e8f5e0;color:#2a6020;padding:2px 7px;border-radius:4px;font-weight:700">K 調理補助</span>`;
+  h+=`<span style="background:#e0eeff;color:#1040a0;padding:2px 7px;border-radius:4px;font-weight:700">H ホール</span>`;
+  h+=`<span style="background:#fff0f0;color:#cc4444;padding:2px 7px;border-radius:4px">✕ 欠勤</span>`;
+  h+=`<span style="background:#fff3e0;color:#b06000;padding:2px 7px;border-radius:4px;font-weight:700">🌞 昼行</span>`;
+  h+=`<span style="background:#f0eeff;color:#5030a0;padding:2px 7px;border-radius:4px;font-weight:700">🌙 夜行</span>`;
+  h+=`</div>`;
+
+  // 前半（1〜mid日）
+  h+=`<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:14px;overflow-x:auto">`;
+  h+=`<div style="font-size:.75rem;font-weight:700;color:var(--accent);margin-bottom:8px">📅 前半　1日〜${half1end}日</div>`;
+  h+=buildHalfTable(y,m,1,half1end);
+  h+=`</div>`;
+
+  // 後半（mid+1〜末日）
+  h+=`<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:14px;overflow-x:auto">`;
+  h+=`<div style="font-size:.75rem;font-weight:700;color:var(--accent);margin-bottom:8px">📅 後半　${half2start}日〜${daysIn}日</div>`;
+  h+=buildHalfTable(y,m,half2start,daysIn);
+  h+=`</div>`;
+
   document.getElementById('monthlyBody').innerHTML=h;
 }
 function printMonthly(){
