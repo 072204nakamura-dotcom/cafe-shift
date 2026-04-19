@@ -198,31 +198,33 @@ body{font-family:'Noto Sans JP',sans-serif;background:#f5f0e8;color:#1e1810;min-
 
 @media print{
   .hdr,.tabs,.ov,
-  .nbtn,[onclick="printMonthly()"],
+  .nbtn,#pdfGuide,
   #btnMatrix,#btnUnused{display:none!important;}
-  /* 月間出勤表ページのみ表示 */
+  /* print-targetクラスのページのみ表示 */
   .page{display:none!important;}
-  #page-monthly{display:block!important;}
+  .page.print-target{display:block!important;}
+  /* サマリー・凡例・ナビを非表示 */
+  .page.print-target .mnav{display:none!important;}
   body{background:#fff;margin:0;padding:6px;}
   /* マトリクス表調整 */
   #monthlyBody{overflow:visible!important;}
   #monthlyBody table{
-    font-size:7.5pt!important;
+    font-size:8pt!important;
     min-width:unset!important;
     width:100%!important;
     table-layout:fixed;
   }
   #monthlyBody td,#monthlyBody th{
-    padding:2px 1px!important;
+    padding:2px 2px!important;
     min-width:unset!important;
-    max-width:24px;
     overflow:hidden;
-    font-size:7pt!important;
+    font-size:7.5pt!important;
   }
-  #monthlyBody .summary-wrap>div{
-    font-size:7pt!important;
-    padding:3px 5px!important;
-  }
+  /* 前半の後で改ページ */
+  #halfTable1{page-break-after:always;}
+  #halfTable2{page-break-before:always;}
+  /* 背景色を強制印刷 */
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
   /* A4横 */
   @page{size:A4 landscape;margin:8mm;}
 }
@@ -1244,13 +1246,28 @@ async function loadFromGas(){
 let monthlyView = 'matrix';
 
 function doPrint(){
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
-  document.getElementById('page-monthly').classList.add('on');
-  window.print();
+  const origTitle=document.title;
+  document.title=`Cafe照シフト_${curY}年${curM+1}月`;
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('print-target'));
+  document.getElementById('page-monthly').classList.add('print-target');
   setTimeout(()=>{
-    document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
-    document.getElementById('page-monthly').classList.add('on');
-  },500);
+    window.print();
+    setTimeout(()=>{
+      document.querySelectorAll('.page').forEach(p=>p.classList.remove('print-target'));
+      document.title=origTitle;
+    },1000);
+  },300);
+}
+
+function showPdfGuide(){
+  renderMonthly();
+  const guide=document.getElementById('pdfGuide');
+  guide.style.display=guide.style.display==='none'?'block':'none';
+}
+
+function startPdfPrint(){
+  document.getElementById('pdfGuide').style.display='none';
+  doPrint();
 }
 
 function buildHalfTable(y, m, fromDay, toDay){
