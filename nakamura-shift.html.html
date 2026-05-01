@@ -812,7 +812,12 @@ function buildHalfTable(y, m, startDay, endDay){
 
     // 🌞 ランチ行
     h+=`<tr>`;
-    h+=`<td rowspan="2" style="background:#f5f0e8;padding:4px 6px;font-weight:700;border:1px solid var(--border);white-space:nowrap;vertical-align:middle;font-size:.72rem;border-left:4px solid #8b4513">${s.name}</td>`;
+    const dispName=(()=>{
+        if(s.name.includes('伴樹')) return 'オーナー';
+        if(s.name.includes('紀子')) return 'マネージャー';
+        return s.name.split(/\s|　/)[0]; // 名字のみ
+      })();
+      h+=`<td rowspan="2" style="background:#f5f0e8;padding:4px 6px;font-weight:700;border:1px solid var(--border);white-space:nowrap;vertical-align:middle;font-size:.72rem;border-left:4px solid #8b4513">${dispName}</td>`;
     h+=`<td style="background:#f5a800;padding:3px 4px;text-align:center;border:1px solid #c88000;font-size:.62rem;font-weight:700;color:#fff;white-space:nowrap">🌞昼</td>`;
     for(let d=startDay;d<=endDay;d++){
       const key=dk(y,m,d),pat=getDayPattern(key),dow=new Date(y,m,d).getDay();
