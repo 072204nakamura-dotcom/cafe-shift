@@ -427,6 +427,12 @@ function countDays(staffId){
   return c;
 }
 function getRoleTag(s){return(s.roles||[]).includes('K')&&(s.roles||[]).includes('H')?'KH':(s.roles||['H'])[0];}
+function dispShort(s){
+  if(!s) return '?';
+  if(s.name.includes('伴樹')) return 'オーナー';
+  if(s.name.includes('紀子')) return 'マネージャー';
+  return s.name.split(/\s|　/)[0]; // 名字のみ
+}
 
 // ============================================================
 // CALENDAR
@@ -464,7 +470,7 @@ function renderCal(){
       if(pat==='both'||pat==='lunch_only'){
         const la=sessAssign(key,'lunch'),lm=checkRoles(key,'lunch');
         h+=`<div class="sb lunch"><span class="sl lunch">🌞ランチ</span>`;
-        if(la.length){h+=`<div class="sc">`;la.forEach(a=>h+=`<span class="scc ${a.role}">${a.s.name.slice(-2)} ${a.role}</span>`);h+=`</div>`;}
+        if(la.length){h+=`<div class="sc">`;la.forEach(a=>h+=`<span class="scc ${a.role}">${dispShort(a.s)} ${a.role}</span>`);h+=`</div>`;}
         if(lm.length)h+=`<div class="sa2">⚠${lm.join('・')}</div>`;
         h+=`</div>`;
       } else {
@@ -473,7 +479,7 @@ function renderCal(){
       if(pat==='both'||pat==='dinner_only'){
         const da=sessAssign(key,'dinner'),dm=checkRoles(key,'dinner');
         h+=`<div class="sb dinner"><span class="sl dinner">🌙ディナー</span>`;
-        if(da.length){h+=`<div class="sc">`;da.forEach(a=>h+=`<span class="scc ${a.role}">${a.s.name.slice(-2)} ${a.role}</span>`);h+=`</div>`;}
+        if(da.length){h+=`<div class="sc">`;da.forEach(a=>h+=`<span class="scc ${a.role}">${dispShort(a.s)} ${a.role}</span>`);h+=`</div>`;}
         if(dm.length)h+=`<div class="sa2">⚠${dm.join('・')}</div>`;
         h+=`</div>`;
       }
