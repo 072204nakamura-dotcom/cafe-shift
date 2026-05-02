@@ -746,15 +746,17 @@ function renderInputDishes(savedOrder){
         </div>${pts}`;
 
     } else {
-      // 通常皿
+      // 通常皿：料理名をリアルタイムでヘッダーに反映
+      const headId = `hd-${key}`;
       const rows=normalFields.map((f,fi)=>`<div class="frow"${fi===normalFields.length-1?' style="border-bottom:none"':''}>
         <div class="flbl">${f.lb}</div>
-        <input class="finp" type="text" inputmode="text" id="i-${key}${f.id}">
+        <input class="finp" type="text" inputmode="text" id="i-${key}${f.id}"
+          ${f.id==='nm'?`oninput="updateDishHead('${headId}',this.value)"`:''}>
       </div>`).join('');
       card.innerHTML=`
         <div class="card-hd ${hdClsSub}" style="cursor:grab">
           <span style="font-size:16px;margin-right:2px;opacity:.6">⠿</span>
-          <span class="hd-ttl">${d.label}</span>
+          <span class="hd-ttl" id="${headId}" style="color:rgba(255,255,255,${isL?'1':'1'})">料理名を入力してください</span>
         </div>${rows}`;
     }
 
@@ -860,9 +862,13 @@ function initDate(inputId, circlesId){
   });
 }
 
-// ═══════════════════════════════════
-// 入力値収集（現在の並び順を維持）
-// ═══════════════════════════════════
+// 料理名入力でヘッダーをリアルタイム更新
+function updateDishHead(headId, val){
+  const el = document.getElementById(headId);
+  if(!el) return;
+  el.textContent = val.trim() || '料理名を入力してください';
+  el.style.opacity = val.trim() ? '1' : '0.5';
+}
 function collectInputData(){
   const mode=currentMode;
   const isL=mode==='lunch';
@@ -1224,6 +1230,27 @@ function openEdit(id){
   document.getElementById('edit-modal-title').textContent =
     `✏️ ${dateStr} ${isL ? 'ランチ' : 'ディナー'}`;
 
+  // ディナーで肉料理セレクトがない場合は自動追加（古いデータ対応）
+  if(!isL){
+    const hasMeat = r.dishes.some(d =>
+      d.isMeat || d.key==='meat' || d.name==='肉料理セレクト'
+    );
+    if(!hasMeat){
+      r.dishes.push({
+        num: r.dishes.length + 1,
+        name: '肉料理セレクト',
+        isMeat: true,
+        key: 'meat',
+        items: [
+          {point:'①',name:'',ingredient:'',method:'',sauce:''},
+          {point:'②',name:'',ingredient:'',method:'',sauce:''},
+          {point:'③',name:'',ingredient:'',method:'',sauce:''},
+          {point:'④',name:'',ingredient:'',method:'',sauce:''},
+        ]
+      });
+    }
+  }
+
   const wrap = document.getElementById('edit-modal-body');
   wrap.innerHTML = '';
 
@@ -1267,6 +1294,23 @@ function openEdit(id){
     // isApp・isMeat は名前やkeyでも判定（古いデータとの互換）
     const isAppDish  = dish.isApp  || dish.key==='app'  || dish.name==='オードブル盛り合わせ';
     const isMeatDish = dish.isMeat || dish.key==='meat' || dish.name==='肉料理セレクト';
+
+    // 古いデータ用：itemsがない場合は空のitemsを生成
+    if(isAppDish && !dish.items){
+      dish.items = [
+        {point:'①',name:'',ingredient:'',method:'',sauce:''},
+        {point:'②',name:'',ingredient:'',method:'',sauce:''},
+        {point:'③',name:'',ingredient:'',method:'',sauce:''},
+      ];
+    }
+    if(isMeatDish && !dish.items){
+      dish.items = [
+        {point:'①',name:'',ingredient:'',method:'',sauce:''},
+        {point:'②',name:'',ingredient:'',method:'',sauce:''},
+        {point:'③',name:'',ingredient:'',method:'',sauce:''},
+        {point:'④',name:'',ingredient:'',method:'',sauce:''},
+      ];
+    }
 
     if(isAppDish && dish.items){
       const pts = dish.items.map((it,pi) => `
