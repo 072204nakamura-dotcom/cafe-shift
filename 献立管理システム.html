@@ -615,19 +615,27 @@ function switchTab(name){
 let currentMode = 'lunch';
 let currentAiMode = 'lunch';
 
-const lunchDishes=[
-  {type:'appetizer',num:1,kanji:'一',label:'オードブル盛り合わせ',sub:'3点盛り'},
-  {type:'normal',num:2,kanji:'二'},{type:'normal',num:3,kanji:'三'},
-  {type:'normal',num:4,kanji:'四'},{type:'normal',num:5,kanji:'五'},
-  {type:'normal',num:6,kanji:'六'},{type:'normal',num:7,kanji:'七'},
+// 皿の種類定義（皿番号ラベルなし）
+const lunchDishDefs=[
+  {type:'appetizer', key:'app',  label:'オードブル盛り合わせ', sub:'3点盛り'},
+  {type:'normal',    key:'d1',   label:'料理'},
+  {type:'normal',    key:'d2',   label:'料理'},
+  {type:'normal',    key:'d3',   label:'料理'},
+  {type:'normal',    key:'d4',   label:'料理'},
+  {type:'normal',    key:'d5',   label:'料理'},
+  {type:'normal',    key:'d6',   label:'料理'},
 ];
-const dinnerDishes=[
-  {type:'normal',num:1,kanji:'一'},{type:'normal',num:2,kanji:'二'},
-  {type:'normal',num:3,kanji:'三'},{type:'normal',num:4,kanji:'四'},
-  {type:'normal',num:5,kanji:'五'},{type:'normal',num:6,kanji:'六'},
-  {type:'normal',num:7,kanji:'七'},{type:'normal',num:8,kanji:'八'},
-  {type:'normal',num:9,kanji:'九'},
+const dinnerDishDefs=[
+  {type:'normal',    key:'d1',   label:'料理'},
+  {type:'normal',    key:'d2',   label:'料理'},
+  {type:'normal',    key:'d3',   label:'料理'},
+  {type:'normal',    key:'d4',   label:'料理'},
+  {type:'normal',    key:'d5',   label:'料理'},
+  {type:'normal',    key:'d6',   label:'料理'},
+  {type:'normal',    key:'d7',   label:'料理'},
+  {type:'meat',      key:'meat', label:'肉料理セレクト', sub:'4種類から選択'},
 ];
+
 const normalFields=[
   {id:'nm',lb:'料理名',ph:'例：真鯛のポワレ'},
   {id:'ig',lb:'食材',ph:'例：真鯛'},
@@ -636,7 +644,7 @@ const normalFields=[
   {id:'ga',lb:'付け合わせ',ph:'例：春キャベツ'},
   {id:'tp',lb:'トッピング',ph:'ベビーリーフ'},
 ];
-const appFields=[
+const selectFields=[
   {id:'nm',lb:'料理名'},{id:'ig',lb:'食材'},
   {id:'mt',lb:'調理法'},{id:'sc',lb:'ソース'},
 ];
@@ -647,6 +655,7 @@ function setMode(mode){
   document.getElementById('mode-lunch-btn').className='mode-btn'+(isL?' active-lunch':'');
   document.getElementById('mode-dinner-btn').className='mode-btn'+(isL?'':' active-dinner');
   document.getElementById('inp-save-btn').className='btn-save '+(isL?'btn-green':'btn-navy');
+  document.getElementById('inp-print-btn').style.display='';
   renderInputDishes();
   updateDayStyle('inp-days', mode);
 }
@@ -670,53 +679,146 @@ function updateDayStyle(containerId, mode){
 }
 
 // ═══════════════════════════════════
-// 入力フォーム 皿生成
+// 入力フォーム 皿生成（ドラッグ&ドロップ対応）
 // ═══════════════════════════════════
-function renderInputDishes(){
+let dragSrc = null;
+
+function renderInputDishes(savedOrder){
   const wrap=document.getElementById('inp-dishes');
   wrap.innerHTML='';
-  const defs=currentMode==='lunch'?lunchDishes:dinnerDishes;
-  const hdCls=currentMode==='lunch'
-    ?['hd-green','hd-gm','hd-gm','hd-gm','hd-gm','hd-gm','hd-gm']
-    :['hd-navy','hd-nm','hd-nalt','hd-navy','hd-nm','hd-nalt','hd-navy','hd-nm','hd-nalt'];
+  const isL=currentMode==='lunch';
+  const defs=isL?lunchDishDefs:dinnerDishDefs;
+  const order=savedOrder||defs.map(d=>d.key);
 
-  defs.forEach((d,i)=>{
+  order.forEach(key=>{
+    const d=defs.find(x=>x.key===key);
+    if(!d) return;
     const card=document.createElement('div');
-    card.className='card';
-    card.style.marginBottom='12px';
+    card.className='card dish-card';
+    card.dataset.key=key;
+    card.style.marginBottom='10px';
+    card.style.cursor='grab';
+    card.draggable=true;
+
+    const hdCls=isL?'hd-green':'hd-navy';
+    const hdClsSub=isL?'hd-gm':'hd-nm';
 
     if(d.type==='appetizer'){
-      // オードブル
-      const hd=`<div class="card-hd hd-green">
-        <div class="hd-num">1</div>
-        <span class="hd-ttl">${d.label}</span>
-        <span class="hd-sub">${d.sub}</span>
-      </div>`;
-      const pts=['①一点目','②二点目','③三点目'].map((pt,pi)=>{
-        const rows=appFields.map((f,fi)=>`<div class="frow"${fi===appFields.length-1?' style="border-bottom:none"':''}>
+      // ランチ：オードブル
+      const pts=['①','②','③'].map((pt,pi)=>{
+        const rows=selectFields.map((f,fi)=>`<div class="frow"${fi===selectFields.length-1?' style="border-bottom:none"':''}>
           <div class="flbl">${f.lb}</div>
-          <input class="finp" type="text" inputmode="text" id="i-a${pi+1}${f.id}" placeholder="">
+          <input class="finp" type="text" inputmode="text" id="i-a${pi+1}${f.id}">
         </div>`).join('');
         return `<div class="app-sec">
           <div class="app-lbl">
-            <div class="app-pt">${pt[0]}</div>
-            <span class="app-pt-txt">${pt.slice(1)}</span>
-          </div>
-          ${rows}
+            <div class="app-pt">${pt}</div>
+            <span class="app-pt-txt">${['一点目','二点目','三点目'][pi]}</span>
+          </div>${rows}
         </div>`;
       }).join('');
-      card.innerHTML=hd+pts;
+      card.innerHTML=`
+        <div class="card-hd ${hdCls}" style="cursor:grab">
+          <span style="font-size:16px;margin-right:2px;opacity:.6">⠿</span>
+          <span class="hd-ttl">${d.label}</span>
+          <span class="hd-sub">${d.sub}</span>
+        </div>${pts}`;
+
+    } else if(d.type==='meat'){
+      // ディナー：肉料理セレクト（4種類）
+      const pts=['①','②','③','④'].map((pt,pi)=>{
+        const rows=selectFields.map((f,fi)=>`<div class="frow"${fi===selectFields.length-1?' style="border-bottom:none"':''}>
+          <div class="flbl">${f.lb}</div>
+          <input class="finp" type="text" inputmode="text" id="i-m${pi+1}${f.id}">
+        </div>`).join('');
+        return `<div class="app-sec" style="border-bottom:${pi<3?'2px solid var(--nl)':'none'}">
+          <div class="app-lbl">
+            <div class="app-pt" style="background:var(--nd)">${pt}</div>
+            <span class="app-pt-txt" style="color:var(--nd)">${['選択肢A','選択肢B','選択肢C','選択肢D'][pi]}</span>
+          </div>${rows}
+        </div>`;
+      }).join('');
+      card.innerHTML=`
+        <div class="card-hd ${hdCls}" style="cursor:grab">
+          <span style="font-size:16px;margin-right:2px;opacity:.6">⠿</span>
+          <span class="hd-ttl">${d.label}</span>
+          <span class="hd-sub">${d.sub}</span>
+        </div>${pts}`;
+
     } else {
-      const cls=hdCls[i]||'hd-gm';
+      // 通常皿
       const rows=normalFields.map((f,fi)=>`<div class="frow"${fi===normalFields.length-1?' style="border-bottom:none"':''}>
         <div class="flbl">${f.lb}</div>
-        <input class="finp" type="text" inputmode="text" id="i-d${d.num}${f.id}" placeholder="${i===0?f.ph:''}">
+        <input class="finp" type="text" inputmode="text" id="i-${key}${f.id}">
       </div>`).join('');
-      card.innerHTML=`<div class="card-hd ${cls}">
-        <div class="hd-num">${d.num}</div>
-        <span class="hd-ttl">${d.kanji}皿目</span>
-      </div>${rows}`;
+      card.innerHTML=`
+        <div class="card-hd ${hdClsSub}" style="cursor:grab">
+          <span style="font-size:16px;margin-right:2px;opacity:.6">⠿</span>
+          <span class="hd-ttl">${d.label}</span>
+        </div>${rows}`;
     }
+
+    // ドラッグ&ドロップ イベント
+    card.addEventListener('dragstart', e=>{
+      dragSrc=card;
+      setTimeout(()=>card.style.opacity='.4',0);
+      e.dataTransfer.effectAllowed='move';
+    });
+    card.addEventListener('dragend', ()=>{
+      card.style.opacity='1';
+      dragSrc=null;
+      document.querySelectorAll('.dish-card').forEach(c=>c.style.border='');
+    });
+    card.addEventListener('dragover', e=>{
+      e.preventDefault();
+      if(card!==dragSrc){
+        card.style.border=`2px solid ${isL?'var(--gm)':'var(--nm)'}`;
+      }
+      e.dataTransfer.dropEffect='move';
+    });
+    card.addEventListener('dragleave', ()=>card.style.border='');
+    card.addEventListener('drop', e=>{
+      e.preventDefault();
+      card.style.border='';
+      if(dragSrc && dragSrc!==card){
+        const allCards=[...wrap.querySelectorAll('.dish-card')];
+        const srcIdx=allCards.indexOf(dragSrc);
+        const tgtIdx=allCards.indexOf(card);
+        if(srcIdx<tgtIdx) wrap.insertBefore(dragSrc, card.nextSibling);
+        else wrap.insertBefore(dragSrc, card);
+      }
+    });
+
+    // タッチ対応（iPhone）
+    let touchStartY=0, touchEl=null;
+    card.addEventListener('touchstart',e=>{
+      touchStartY=e.touches[0].clientY;
+      touchEl=card;
+      card.style.opacity='.7';
+    },{passive:true});
+    card.addEventListener('touchmove',e=>{
+      e.preventDefault();
+      const y=e.touches[0].clientY;
+      const els=document.elementsFromPoint(e.touches[0].clientX, y);
+      const target=els.find(el=>el.classList.contains('dish-card')&&el!==card);
+      document.querySelectorAll('.dish-card').forEach(c=>c.style.border='');
+      if(target) target.style.border=`2px solid ${isL?'var(--gm)':'var(--nm)'}`;
+    },{passive:false});
+    card.addEventListener('touchend',e=>{
+      card.style.opacity='1';
+      const y=e.changedTouches[0].clientY;
+      const els=document.elementsFromPoint(e.changedTouches[0].clientX, y);
+      const target=els.find(el=>el.classList.contains('dish-card')&&el!==card);
+      document.querySelectorAll('.dish-card').forEach(c=>c.style.border='');
+      if(target){
+        const allCards=[...wrap.querySelectorAll('.dish-card')];
+        const srcIdx=allCards.indexOf(card);
+        const tgtIdx=allCards.indexOf(target);
+        if(srcIdx<tgtIdx) wrap.insertBefore(card, target.nextSibling);
+        else wrap.insertBefore(card, target);
+      }
+    },{passive:true});
+
     wrap.appendChild(card);
   });
 }
@@ -759,14 +861,23 @@ function initDate(inputId, circlesId){
 }
 
 // ═══════════════════════════════════
-// 入力値収集
+// 入力値収集（現在の並び順を維持）
 // ═══════════════════════════════════
 function collectInputData(){
   const mode=currentMode;
-  const defs=mode==='lunch'?lunchDishes:dinnerDishes;
+  const isL=mode==='lunch';
+  const defs=isL?lunchDishDefs:dinnerDishDefs;
   const dishes=[];
+  let dishNum=1;
 
-  defs.forEach(d=>{
+  // 現在の表示順序を取得
+  const currentOrder=[...document.querySelectorAll('#inp-dishes .dish-card')]
+    .map(c=>c.dataset.key);
+
+  currentOrder.forEach(key=>{
+    const d=defs.find(x=>x.key===key);
+    if(!d) return;
+
     if(d.type==='appetizer'){
       const items=[1,2,3].map(pi=>({
         point:['①','②','③'][pi-1],
@@ -775,16 +886,28 @@ function collectInputData(){
         method:(document.getElementById(`i-a${pi}mt`)?.value||'').trim(),
         sauce:(document.getElementById(`i-a${pi}sc`)?.value||'').trim(),
       }));
-      dishes.push({num:1,name:'オードブル盛り合わせ',isApp:true,items});
+      dishes.push({num:dishNum++,name:'オードブル盛り合わせ',isApp:true,key,items});
+
+    } else if(d.type==='meat'){
+      const items=[1,2,3,4].map(pi=>({
+        point:['①','②','③','④'][pi-1],
+        name:(document.getElementById(`i-m${pi}nm`)?.value||'').trim(),
+        ingredient:(document.getElementById(`i-m${pi}ig`)?.value||'').trim(),
+        method:(document.getElementById(`i-m${pi}mt`)?.value||'').trim(),
+        sauce:(document.getElementById(`i-m${pi}sc`)?.value||'').trim(),
+      }));
+      dishes.push({num:dishNum++,name:'肉料理セレクト',isMeat:true,key,items});
+
     } else {
       dishes.push({
-        num:d.num,
-        name:(document.getElementById(`i-d${d.num}nm`)?.value||'').trim(),
-        ingredient:(document.getElementById(`i-d${d.num}ig`)?.value||'').trim(),
-        method:(document.getElementById(`i-d${d.num}mt`)?.value||'').trim(),
-        sauce:(document.getElementById(`i-d${d.num}sc`)?.value||'').trim(),
-        garnish:(document.getElementById(`i-d${d.num}ga`)?.value||'').trim(),
-        topping:(document.getElementById(`i-d${d.num}tp`)?.value||'').trim(),
+        num:dishNum++,
+        key,
+        name:(document.getElementById(`i-${key}nm`)?.value||'').trim(),
+        ingredient:(document.getElementById(`i-${key}ig`)?.value||'').trim(),
+        method:(document.getElementById(`i-${key}mt`)?.value||'').trim(),
+        sauce:(document.getElementById(`i-${key}sc`)?.value||'').trim(),
+        garnish:(document.getElementById(`i-${key}ga`)?.value||'').trim(),
+        topping:(document.getElementById(`i-${key}tp`)?.value||'').trim(),
       });
     }
   });
@@ -984,7 +1107,9 @@ function renderHistory(){
       const days=['日','月','火','水','木','金','土'];
       const dateStr=`${parseInt(r.date.slice(5,7))}月${parseInt(r.date.slice(8,10))}日（${days[d.getDay()]}）`;
       const isL=r.mode==='lunch';
-      const dishNames=r.dishes.filter(d=>!d.isApp&&d.name).map(d=>d.name).slice(0,3).join(' / ');
+      const dishNames=r.dishes
+        .filter(d=>!d.isApp&&!d.isMeat&&d.name)
+        .map(d=>d.name).slice(0,3).join(' / ');
 
       const item=document.createElement('div'); item.className='record-item';
       item.innerHTML=`
@@ -1032,10 +1157,22 @@ function showDetail(id){
   r.dishes.forEach(dish=>{
     if(dish.isApp && dish.items){
       html+=`<div class="modal-section">
-        <div class="modal-section-ttl">1皿目 オードブル盛り合わせ</div>
+        <div class="modal-section-ttl">${dish.num}皿目 オードブル盛り合わせ</div>
         ${dish.items.map(it=>`
           <div class="dish-detail">
             <div class="dish-detail-num ${cls}">${it.point} ${it.point==='①'?'一点目':it.point==='②'?'二点目':'三点目'}</div>
+            ${it.name?`<div class="detail-row"><span class="detail-lbl">料理名</span><span class="detail-val">${it.name}</span></div>`:''}
+            ${it.ingredient?`<div class="detail-row"><span class="detail-lbl">食材</span><span class="detail-val">${it.ingredient}</span></div>`:''}
+            ${it.method?`<div class="detail-row"><span class="detail-lbl">調理法</span><span class="detail-val">${it.method}</span></div>`:''}
+            ${it.sauce?`<div class="detail-row"><span class="detail-lbl">ソース</span><span class="detail-val">${it.sauce}</span></div>`:''}
+          </div>`).join('')}
+      </div>`;
+    } else if(dish.isMeat && dish.items){
+      html+=`<div class="modal-section">
+        <div class="modal-section-ttl">${dish.num}皿目 肉料理セレクト</div>
+        ${dish.items.map((it,i)=>`
+          <div class="dish-detail">
+            <div class="dish-detail-num ${cls}">${it.point} 選択肢${'ABCD'[i]}</div>
             ${it.name?`<div class="detail-row"><span class="detail-lbl">料理名</span><span class="detail-val">${it.name}</span></div>`:''}
             ${it.ingredient?`<div class="detail-row"><span class="detail-lbl">食材</span><span class="detail-val">${it.ingredient}</span></div>`:''}
             ${it.method?`<div class="detail-row"><span class="detail-lbl">調理法</span><span class="detail-val">${it.method}</span></div>`:''}
