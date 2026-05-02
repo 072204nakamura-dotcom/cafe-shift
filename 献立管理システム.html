@@ -1155,7 +1155,9 @@ function showDetail(id){
 
   let html='';
   r.dishes.forEach(dish=>{
-    if(dish.isApp && dish.items){
+    const isAppDish  = dish.isApp  || dish.key==='app'  || dish.name==='オードブル盛り合わせ';
+    const isMeatDish = dish.isMeat || dish.key==='meat' || dish.name==='肉料理セレクト';
+    if(isAppDish && dish.items){
       html+=`<div class="modal-section">
         <div class="modal-section-ttl">${dish.num}皿目 オードブル盛り合わせ</div>
         ${dish.items.map(it=>`
@@ -1167,7 +1169,7 @@ function showDetail(id){
             ${it.sauce?`<div class="detail-row"><span class="detail-lbl">ソース</span><span class="detail-val">${it.sauce}</span></div>`:''}
           </div>`).join('')}
       </div>`;
-    } else if(dish.isMeat && dish.items){
+    } else if(isMeatDish && dish.items){
       html+=`<div class="modal-section">
         <div class="modal-section-ttl">${dish.num}皿目 肉料理セレクト</div>
         ${dish.items.map((it,i)=>`
@@ -1262,8 +1264,11 @@ function openEdit(id){
     card.style.cssText = 'margin-bottom:10px;cursor:grab';
     card.draggable = true;
 
-    if(dish.isApp && dish.items){
-      // オードブル
+    // isApp・isMeat は名前やkeyでも判定（古いデータとの互換）
+    const isAppDish  = dish.isApp  || dish.key==='app'  || dish.name==='オードブル盛り合わせ';
+    const isMeatDish = dish.isMeat || dish.key==='meat' || dish.name==='肉料理セレクト';
+
+    if(isAppDish && dish.items){
       const pts = dish.items.map((it,pi) => `
         <div class="app-sec" style="border-bottom:${pi<dish.items.length-1?`2px solid ${lineCol}`:'none'}">
           <div class="app-lbl">
@@ -1281,7 +1286,7 @@ function openEdit(id){
         <span class="hd-sub">3点盛り</span>
       </div>${pts}`;
 
-    } else if(dish.isMeat && dish.items){
+    } else if(isMeatDish && dish.items){
       // 肉料理セレクト（4種類）
       const pts = dish.items.map((it,pi) => `
         <div class="app-sec" style="border-bottom:${pi<dish.items.length-1?`2px solid ${lineCol}`:'none'}">
@@ -1424,7 +1429,10 @@ function saveEdit(){
     const orig = r.dishes[origIdx];
     if(!orig) return;
 
-    if(orig.isApp && orig.items){
+    const isAppDish  = orig.isApp  || orig.key==='app'  || orig.name==='オードブル盛り合わせ';
+    const isMeatDish = orig.isMeat || orig.key==='meat' || orig.name==='肉料理セレクト';
+
+    if(isAppDish && orig.items){
       dishes.push({
         ...orig,
         num: dishNum++,
@@ -1436,7 +1444,7 @@ function saveEdit(){
           sauce: (document.getElementById(`e-a${pi+1}sc`)?.value||'').trim(),
         }))
       });
-    } else if(orig.isMeat && orig.items){
+    } else if(isMeatDish && orig.items){
       dishes.push({
         ...orig,
         num: dishNum++,
