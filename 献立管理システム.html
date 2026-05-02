@@ -309,6 +309,10 @@ body{background:var(--bg);font-family:'Zen Kaku Gothic New',sans-serif;color:var
         <div class="dc" data-d="5">金</div><div class="dc" data-d="6">土</div>
         <div class="dc" data-d="0">日</div>
       </div>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+        <span class="date-lbl">👤 お客様名</span>
+        <input type="text" class="date-inp" id="inp-customer" placeholder="例：田中様 / 4名様" style="flex:1">
+      </div>
     </div>
 
     <!-- 皿入力エリア -->
@@ -354,6 +358,10 @@ body{background:var(--bg);font-family:'Zen Kaku Gothic New',sans-serif;color:var
         <div class="dc" data-d="3">水</div><div class="dc" data-d="4">木</div>
         <div class="dc" data-d="5">金</div><div class="dc" data-d="6">土</div>
         <div class="dc" data-d="0">日</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+        <span class="date-lbl">👤 お客様名</span>
+        <input type="text" class="date-inp" id="ai-customer" placeholder="例：田中様 / 4名様" style="flex:1">
       </div>
     </div>
 
@@ -924,16 +932,18 @@ function collectInputData(){
 // 保存
 // ═══════════════════════════════════
 function saveRecord(source){
-  let date, note, dishes, mode;
+  let date, note, dishes, mode, customer;
 
   if(source==='input'){
     date=document.getElementById('inp-date').value;
     note=(document.getElementById('inp-note').value||'').trim();
+    customer=(document.getElementById('inp-customer').value||'').trim();
     dishes=collectInputData();
     mode=currentMode;
   } else {
     date=document.getElementById('ai-date').value;
     note=(document.getElementById('ai-note').value||'').trim();
+    customer=(document.getElementById('ai-customer').value||'').trim();
     dishes=aiState.result?.dishes||[];
     mode=currentAiMode;
   }
@@ -942,19 +952,13 @@ function saveRecord(source){
 
   const record={
     id:Date.now(),
-    date, mode, note, dishes,
+    date, mode, note, customer, dishes,
     source,
     savedAt:new Date().toLocaleString('ja-JP'),
   };
 
   const store=loadStore();
-  // 同じ日付・モードがあれば上書き確認
-  const dup=store.findIndex(r=>r.date===date&&r.mode===mode);
-  if(dup>=0){
-    if(!confirm(`${date}の${mode==='lunch'?'ランチ':'ディナー'}献立がすでに保存されています。上書きしますか？`)) return;
-    store.splice(dup,1);
-  }
-  store.unshift(record);
+  store.unshift(record);  // 上書きせず、常に新規追加
   saveStore(store);
 
   showToast(`✅ ${date}の${mode==='lunch'?'ランチ':'ディナー'}献立を保存しました`);
@@ -972,6 +976,12 @@ function showErr(source, msg){
 function clearInput(){
   document.querySelectorAll('#inp-dishes .finp').forEach(e=>e.value='');
   document.getElementById('inp-note').value='';
+  document.getElementById('inp-customer').value='';
+  // ヘッダーもリセット
+  document.querySelectorAll('#inp-dishes .hd-ttl[id^="hd-"]').forEach(el=>{
+    el.textContent='料理名を入力してください';
+    el.style.opacity='0.5';
+  });
 }
 
 // ═══════════════════════════════════
@@ -1114,20 +1124,27 @@ function renderHistory(){
       const dateStr=`${parseInt(r.date.slice(5,7))}月${parseInt(r.date.slice(8,10))}日（${days[d.getDay()]}）`;
       const isL=r.mode==='lunch';
       const dishNames=r.dishes
-        .filter(d=>!d.isApp&&!d.isMeat&&d.name)
+        .filter(d=>!d.isApp&&!d.isMeat&&d.name&&d.name!=='オードブル盛り合わせ'&&d.name!=='肉料理セレクト')
         .map(d=>d.name).slice(0,3).join(' / ');
 
       const item=document.createElement('div'); item.className='record-item';
+      const customerHtml = r.customer
+        ? `<span style="font-family:'Shippori Mincho B1',serif;font-size:12px;color:${isL?'var(--gd)':'var(--nd)'};font-weight:700;margin-left:6px">👤 ${esc(r.customer)}</span>`
+        : '';
       item.innerHTML=`
         <span class="r-badge ${isL?'rb-lunch':'rb-dinner'}">${isL?'☀ ランチ':'🌙 ディナー'}</span>
         <div class="r-body">
-          <div class="r-date">${dateStr}</div>
+          <div style="display:flex;align-items:baseline;flex-wrap:wrap">
+            <div class="r-date">${dateStr}</div>
+            ${customerHtml}
+          </div>
           <div class="r-dishes">${dishNames||'（料理名未入力）'}</div>
-          ${r.note?`<div class="r-note">${r.note}</div>`:''}
+          ${r.note?`<div class="r-note">${esc(r.note)}</div>`:''}
         </div>
-        <div class="r-actions">
+        <div class="r-actions" style="flex-wrap:wrap;gap:4px;justify-content:flex-end;max-width:140px">
           <button class="btn-sm" onclick="showDetail(${r.id})">詳細</button>
           <button class="btn-sm" style="border-color:var(--gm);color:var(--gd)" onclick="openEdit(${r.id})">✏️ 編集</button>
+          <button class="btn-sm" style="border-color:var(--nm);color:var(--nm)" onclick="copyRecord(${r.id})">📋 コピー</button>
           <button class="btn-sm" style="border-color:var(--gold);color:var(--gold)" onclick="printRecord(${r.id})">🖨</button>
           <button class="btn-sm danger" onclick="deleteRecord(${r.id})">削除</button>
         </div>`;
@@ -1135,6 +1152,32 @@ function renderHistory(){
     });
     list.appendChild(grp);
   });
+}
+
+// 既存の献立をコピーして新規保存
+function copyRecord(id){
+  const orig = loadStore().find(r => r.id === id);
+  if(!orig) return;
+
+  const newCustomer = prompt(
+    `「${orig.customer || '（お客様名なし）'}」をコピーします。\n\n新しいお客様名を入力してください：`,
+    ''
+  );
+  if(newCustomer === null) return; // キャンセル
+
+  const copied = {
+    ...JSON.parse(JSON.stringify(orig)),  // 完全コピー
+    id: Date.now(),
+    customer: newCustomer.trim(),
+    savedAt: new Date().toLocaleString('ja-JP'),
+  };
+
+  const store = loadStore();
+  store.unshift(copied);
+  saveStore(store);
+  renderHistory();
+  renderStats();
+  showToast('✅ コピーして保存しました');
 }
 
 function deleteRecord(id){
@@ -1157,7 +1200,7 @@ function showDetail(id){
   const cls=isL?'':'navy';
 
   document.getElementById('modal-title').textContent=
-    `${r.date.slice(5,7).replace(/^0/,'')}月${r.date.slice(8,10).replace(/^0/,'')}日（${days[d.getDay()]}）${isL?'ランチ':'ディナー'}`;
+    `${r.date.slice(5,7).replace(/^0/,'')}月${r.date.slice(8,10).replace(/^0/,'')}日（${days[d.getDay()]}）${isL?'ランチ':'ディナー'}${r.customer?'　'+r.customer:''}`;
 
   let html='';
   r.dishes.forEach(dish=>{
@@ -1263,7 +1306,7 @@ function openEdit(id){
       <input type="date" id="edit-date" value="${r.date}"
         style="flex:1;height:40px;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;font-size:15px;color:var(--ink);background:#fff;outline:none;-webkit-appearance:none">
     </div>
-    <div style="display:flex;gap:4px;justify-content:center" id="edit-day-circles">
+    <div style="display:flex;gap:4px;justify-content:center;margin-bottom:10px" id="edit-day-circles">
       ${['月','火','水','木','金','土','日'].map((l,i)=>{
         const dv=[1,2,3,4,5,6,0][i];
         const on = dv === d.getDay();
@@ -1272,6 +1315,11 @@ function openEdit(id){
           style="${on?`background:${col};border-color:${col};color:#fff`:''}"
           onclick="editDayClick(this,'${isL?'lunch':'dinner'}')">${l}</div>`;
       }).join('')}
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;padding-top:10px;border-top:1px solid var(--border)">
+      <span style="font-size:10px;font-weight:700;color:var(--mid);letter-spacing:.14em;white-space:nowrap">👤 お客様名</span>
+      <input type="text" id="edit-customer" value="${esc(r.customer||'')}" placeholder="例：田中様 / 4名様"
+        style="flex:1;height:40px;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;font-size:15px;color:var(--ink);background:#fff;outline:none;-webkit-appearance:none">
     </div>`;
   wrap.appendChild(dateWrap);
 
@@ -1520,6 +1568,7 @@ function saveEdit(){
     date: newDate,
     dishes,
     note: (document.getElementById('edit-note')?.value||'').trim(),
+    customer: (document.getElementById('edit-customer')?.value||'').trim(),
     updatedAt: new Date().toLocaleString('ja-JP'),
   };
 
@@ -1555,9 +1604,10 @@ function showToast(msg){
 function printCurrent(){
   const date = document.getElementById('inp-date').value;
   const note = (document.getElementById('inp-note').value||'').trim();
+  const customer = (document.getElementById('inp-customer').value||'').trim();
   const dishes = collectInputData();
   const mode = currentMode;
-  buildPrintSheet({ date, mode, note, dishes });
+  buildPrintSheet({ date, mode, note, customer, dishes });
   window.print();
 }
 
@@ -1697,6 +1747,7 @@ function buildPrintSheet(r){
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
         <div style="font-family:'Shippori Mincho B1',serif;font-size:10pt;font-weight:700;color:#1a1a1a;border-bottom:1.5pt solid #1a1a1a;min-width:50mm;padding-bottom:1px;text-align:right">${dateStr}</div>
+        ${r.customer?`<div style="font-family:'Shippori Mincho B1',serif;font-size:10pt;font-weight:700;color:${col};letter-spacing:.06em">👤 ${r.customer}</div>`:''}
         <div style="display:flex;gap:2px">${daysHtml}</div>
       </div>
     </div>
@@ -1755,21 +1806,29 @@ function exportCSV(){
   const store=loadStore();
   if(store.length===0){ alert('保存されたデータがありません'); return; }
 
-  const rows=[['日付','曜日','区分','皿番号','皿名称','料理名','食材','調理法','ソース','付け合わせ','トッピング','備考','登録日時']];
+  const rows=[['日付','曜日','区分','お客様名','皿番号','皿名称','料理名','食材','調理法','ソース','付け合わせ','トッピング','備考','登録日時']];
   const days=['日','月','火','水','木','金','土'];
 
   store.forEach(r=>{
     const d=new Date(r.date+'T00:00:00');
     const dayStr=days[d.getDay()];
     const mode=r.mode==='lunch'?'ランチ':'ディナー';
+    const customer=r.customer||'';
 
     r.dishes.forEach(dish=>{
-      if(dish.isApp && dish.items){
+      const isAppDish  = dish.isApp  || dish.key==='app'  || dish.name==='オードブル盛り合わせ';
+      const isMeatDish = dish.isMeat || dish.key==='meat' || dish.name==='肉料理セレクト';
+
+      if(isAppDish && dish.items){
         dish.items.forEach(it=>{
-          rows.push([r.date,dayStr,mode,1,`オードブル${it.point}`,it.name||'',it.ingredient||'',it.method||'',it.sauce||'','','',r.note||'',r.savedAt]);
+          rows.push([r.date,dayStr,mode,customer,dish.num,`オードブル${it.point}`,it.name||'',it.ingredient||'',it.method||'',it.sauce||'','','',r.note||'',r.savedAt]);
+        });
+      } else if(isMeatDish && dish.items){
+        dish.items.forEach((it,i)=>{
+          rows.push([r.date,dayStr,mode,customer,dish.num,`肉料理${it.point}選択肢${'ABCD'[i]||''}`,it.name||'',it.ingredient||'',it.method||'',it.sauce||'','','',r.note||'',r.savedAt]);
         });
       } else {
-        rows.push([r.date,dayStr,mode,dish.num,`${dish.num}皿目`,dish.name||'',dish.ingredient||'',dish.method||'',dish.sauce||'',dish.garnish||'',dish.topping||'',r.note||'',r.savedAt]);
+        rows.push([r.date,dayStr,mode,customer,dish.num,`${dish.num}皿目`,dish.name||'',dish.ingredient||'',dish.method||'',dish.sauce||'',dish.garnish||'',dish.topping||'',r.note||'',r.savedAt]);
       }
     });
   });
