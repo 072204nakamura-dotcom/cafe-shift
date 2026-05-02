@@ -1214,16 +1214,18 @@ function openEdit(id){
   const d = new Date(r.date + 'T00:00:00');
   const days = ['日','月','火','水','木','金','土'];
   const dateStr = `${parseInt(r.date.slice(5,7))}月${parseInt(r.date.slice(8,10))}日（${days[d.getDay()]}）`;
+  const hdMain = isL ? 'hd-green' : 'hd-navy';
+  const hdSub  = isL ? 'hd-gm'   : 'hd-nm';
+  const lineCol = isL ? 'var(--gl)' : 'var(--nl)';
+  const dragCol = isL ? 'var(--gm)' : 'var(--nm)';
 
-  // モーダルタイトル
   document.getElementById('edit-modal-title').textContent =
     `✏️ ${dateStr} ${isL ? 'ランチ' : 'ディナー'}`;
 
-  // 編集フォームを生成
   const wrap = document.getElementById('edit-modal-body');
   wrap.innerHTML = '';
 
-  // 日付行
+  // ── 日付行 ──
   const dateWrap = document.createElement('div');
   dateWrap.style.cssText = 'background:#fff;border-radius:12px;padding:13px 15px;margin-bottom:12px;box-shadow:0 2px 8px var(--shadow)';
   dateWrap.innerHTML = `
@@ -1244,15 +1246,26 @@ function openEdit(id){
     </div>`;
   wrap.appendChild(dateWrap);
 
-  // 各皿フォーム
-  r.dishes.forEach(dish => {
+  // ── 並び替えヒント ──
+  const hint = document.createElement('div');
+  hint.style.cssText = 'font-size:10px;color:var(--mid);text-align:center;margin-bottom:10px;letter-spacing:.08em';
+  hint.textContent = '⠿ カードを長押し・ドラッグで順番を入れ替えられます';
+  wrap.appendChild(hint);
+
+  // ── 各皿カード（ドラッグ対応） ──
+  let editDragSrc = null;
+
+  r.dishes.forEach((dish, idx) => {
     const card = document.createElement('div');
-    card.className = 'card';
-    card.style.marginBottom = '12px';
+    card.className = 'card edit-dish-card';
+    card.dataset.idx = idx;
+    card.style.cssText = 'margin-bottom:10px;cursor:grab';
+    card.draggable = true;
 
     if(dish.isApp && dish.items){
+      // オードブル
       const pts = dish.items.map((it,pi) => `
-        <div class="app-sec">
+        <div class="app-sec" style="border-bottom:${pi<dish.items.length-1?`2px solid ${lineCol}`:'none'}">
           <div class="app-lbl">
             <div class="app-pt">${it.point}</div>
             <span class="app-pt-txt">${['一点目','二点目','三点目'][pi]}</span>
@@ -1262,28 +1275,112 @@ function openEdit(id){
           <div class="frow"><div class="flbl">調理法</div><input class="finp" type="text" inputmode="text" id="e-a${pi+1}mt" value="${esc(it.method)}"></div>
           <div class="frow" style="border-bottom:none"><div class="flbl">ソース</div><input class="finp" type="text" inputmode="text" id="e-a${pi+1}sc" value="${esc(it.sauce)}"></div>
         </div>`).join('');
-      card.innerHTML = `<div class="card-hd hd-green"><div class="hd-num">1</div><span class="hd-ttl">オードブル盛り合わせ</span><span class="hd-sub">3点盛り</span></div>${pts}`;
+      card.innerHTML = `<div class="card-hd ${hdMain}" style="cursor:grab">
+        <span style="font-size:16px;margin-right:4px;opacity:.6">⠿</span>
+        <span class="hd-ttl">オードブル盛り合わせ</span>
+        <span class="hd-sub">3点盛り</span>
+      </div>${pts}`;
+
+    } else if(dish.isMeat && dish.items){
+      // 肉料理セレクト（4種類）
+      const pts = dish.items.map((it,pi) => `
+        <div class="app-sec" style="border-bottom:${pi<dish.items.length-1?`2px solid ${lineCol}`:'none'}">
+          <div class="app-lbl">
+            <div class="app-pt" style="background:var(--nd)">${it.point}</div>
+            <span class="app-pt-txt" style="color:var(--nd)">選択肢${'ABCD'[pi]}</span>
+          </div>
+          <div class="frow"><div class="flbl">料理名</div><input class="finp" type="text" inputmode="text" id="e-m${pi+1}nm" value="${esc(it.name)}"></div>
+          <div class="frow"><div class="flbl">食材</div><input class="finp" type="text" inputmode="text" id="e-m${pi+1}ig" value="${esc(it.ingredient)}"></div>
+          <div class="frow"><div class="flbl">調理法</div><input class="finp" type="text" inputmode="text" id="e-m${pi+1}mt" value="${esc(it.method)}"></div>
+          <div class="frow" style="border-bottom:none"><div class="flbl">ソース</div><input class="finp" type="text" inputmode="text" id="e-m${pi+1}sc" value="${esc(it.sauce)}"></div>
+        </div>`).join('');
+      card.innerHTML = `<div class="card-hd ${hdMain}" style="cursor:grab">
+        <span style="font-size:16px;margin-right:4px;opacity:.6">⠿</span>
+        <span class="hd-ttl">肉料理セレクト</span>
+        <span class="hd-sub">4種類から選択</span>
+      </div>${pts}`;
+
     } else {
-      const cls = isL ? 'hd-gm' : 'hd-nm';
-      const kanjiList = ['','一','二','三','四','五','六','七','八','九'];
+      // 通常皿（key方式に対応、なければ番号で後方互換）
+      const dishKey = dish.key || `d${dish.num}`;
       const rows = [
-        {id:'nm',lb:'料理名',key:'name'},
-        {id:'ig',lb:'食材',key:'ingredient'},
-        {id:'mt',lb:'調理法',key:'method'},
-        {id:'sc',lb:'ソース',key:'sauce'},
-        {id:'ga',lb:'付け合わせ',key:'garnish'},
-        {id:'tp',lb:'トッピング',key:'topping'},
+        {id:'nm',lb:'料理名',val:dish.name},
+        {id:'ig',lb:'食材',val:dish.ingredient},
+        {id:'mt',lb:'調理法',val:dish.method},
+        {id:'sc',lb:'ソース',val:dish.sauce},
+        {id:'ga',lb:'付け合わせ',val:dish.garnish},
+        {id:'tp',lb:'トッピング',val:dish.topping},
       ].map((f,fi,arr) => `
         <div class="frow"${fi===arr.length-1?' style="border-bottom:none"':''}>
           <div class="flbl">${f.lb}</div>
-          <input class="finp" type="text" inputmode="text" id="e-d${dish.num}${f.id}" value="${esc(dish[f.key])}">
+          <input class="finp" type="text" inputmode="text" id="e-${dishKey}${f.id}" value="${esc(f.val)}">
         </div>`).join('');
-      card.innerHTML = `<div class="card-hd ${cls}"><div class="hd-num">${dish.num}</div><span class="hd-ttl">${kanjiList[dish.num]||dish.num}皿目</span></div>${rows}`;
+      card.innerHTML = `<div class="card-hd ${hdSub}" style="cursor:grab">
+        <span style="font-size:16px;margin-right:4px;opacity:.6">⠿</span>
+        <span class="hd-ttl">${dish.name||'料理'}</span>
+      </div>${rows}`;
     }
+
+    // ── ドラッグ&ドロップ ──
+    card.addEventListener('dragstart', e => {
+      editDragSrc = card;
+      setTimeout(()=>card.style.opacity='.4', 0);
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    card.addEventListener('dragend', () => {
+      card.style.opacity = '1';
+      editDragSrc = null;
+      document.querySelectorAll('.edit-dish-card').forEach(c=>c.style.border='');
+    });
+    card.addEventListener('dragover', e => {
+      e.preventDefault();
+      if(card !== editDragSrc) card.style.border = `2px solid ${dragCol}`;
+    });
+    card.addEventListener('dragleave', () => card.style.border = '');
+    card.addEventListener('drop', e => {
+      e.preventDefault();
+      card.style.border = '';
+      if(editDragSrc && editDragSrc !== card){
+        const all = [...wrap.querySelectorAll('.edit-dish-card')];
+        const si = all.indexOf(editDragSrc);
+        const ti = all.indexOf(card);
+        if(si < ti) wrap.insertBefore(editDragSrc, card.nextSibling);
+        else wrap.insertBefore(editDragSrc, card);
+      }
+    });
+
+    // ── タッチ（iPhone） ──
+    card.addEventListener('touchstart', e=>{
+      editDragSrc = card;
+      card.style.opacity = '.7';
+    },{passive:true});
+    card.addEventListener('touchmove', e=>{
+      e.preventDefault();
+      const t = e.touches[0];
+      const els = document.elementsFromPoint(t.clientX, t.clientY);
+      const target = els.find(el=>el.classList.contains('edit-dish-card')&&el!==card);
+      document.querySelectorAll('.edit-dish-card').forEach(c=>c.style.border='');
+      if(target) target.style.border = `2px solid ${dragCol}`;
+    },{passive:false});
+    card.addEventListener('touchend', e=>{
+      card.style.opacity = '1';
+      const t = e.changedTouches[0];
+      const els = document.elementsFromPoint(t.clientX, t.clientY);
+      const target = els.find(el=>el.classList.contains('edit-dish-card')&&el!==card);
+      document.querySelectorAll('.edit-dish-card').forEach(c=>c.style.border='');
+      if(target){
+        const all = [...wrap.querySelectorAll('.edit-dish-card')];
+        const si = all.indexOf(card);
+        const ti = all.indexOf(target);
+        if(si < ti) wrap.insertBefore(card, target.nextSibling);
+        else wrap.insertBefore(card, target);
+      }
+    },{passive:true});
+
     wrap.appendChild(card);
   });
 
-  // 備考
+  // ── 備考 ──
   const noteCard = document.createElement('div');
   noteCard.className = 'card';
   noteCard.style.marginBottom = '14px';
@@ -1292,7 +1389,6 @@ function openEdit(id){
   wrap.appendChild(noteCard);
 
   document.getElementById('edit-modal').classList.add('open');
-  // スクロールをトップに
   document.querySelector('#edit-modal .modal').scrollTop = 0;
 }
 
@@ -1315,45 +1411,63 @@ function saveEdit(){
   if(idx < 0) return;
 
   const r = store[idx];
-  const isL = r.mode === 'lunch';
-
-  // 日付
   const newDate = document.getElementById('edit-date').value;
   if(!newDate){ alert('日付を入力してください'); return; }
 
-  // 各皿の値を収集
-  const dishes = r.dishes.map(dish => {
-    if(dish.isApp && dish.items){
-      return {
-        ...dish,
-        items: dish.items.map((it,pi) => ({
+  // 現在の表示順でカードを収集
+  const editCards = [...document.querySelectorAll('#edit-modal-body .edit-dish-card')];
+  let dishNum = 1;
+  const dishes = [];
+
+  editCards.forEach(card => {
+    const origIdx = parseInt(card.dataset.idx);
+    const orig = r.dishes[origIdx];
+    if(!orig) return;
+
+    if(orig.isApp && orig.items){
+      dishes.push({
+        ...orig,
+        num: dishNum++,
+        items: orig.items.map((it,pi) => ({
           ...it,
           name: (document.getElementById(`e-a${pi+1}nm`)?.value||'').trim(),
           ingredient: (document.getElementById(`e-a${pi+1}ig`)?.value||'').trim(),
           method: (document.getElementById(`e-a${pi+1}mt`)?.value||'').trim(),
           sauce: (document.getElementById(`e-a${pi+1}sc`)?.value||'').trim(),
         }))
-      };
+      });
+    } else if(orig.isMeat && orig.items){
+      dishes.push({
+        ...orig,
+        num: dishNum++,
+        items: orig.items.map((it,pi) => ({
+          ...it,
+          name: (document.getElementById(`e-m${pi+1}nm`)?.value||'').trim(),
+          ingredient: (document.getElementById(`e-m${pi+1}ig`)?.value||'').trim(),
+          method: (document.getElementById(`e-m${pi+1}mt`)?.value||'').trim(),
+          sauce: (document.getElementById(`e-m${pi+1}sc`)?.value||'').trim(),
+        }))
+      });
     } else {
-      return {
-        ...dish,
-        name: (document.getElementById(`e-d${dish.num}nm`)?.value||'').trim(),
-        ingredient: (document.getElementById(`e-d${dish.num}ig`)?.value||'').trim(),
-        method: (document.getElementById(`e-d${dish.num}mt`)?.value||'').trim(),
-        sauce: (document.getElementById(`e-d${dish.num}sc`)?.value||'').trim(),
-        garnish: (document.getElementById(`e-d${dish.num}ga`)?.value||'').trim(),
-        topping: (document.getElementById(`e-d${dish.num}tp`)?.value||'').trim(),
-      };
+      const dishKey = orig.key || `d${orig.num}`;
+      dishes.push({
+        ...orig,
+        num: dishNum++,
+        name: (document.getElementById(`e-${dishKey}nm`)?.value||'').trim(),
+        ingredient: (document.getElementById(`e-${dishKey}ig`)?.value||'').trim(),
+        method: (document.getElementById(`e-${dishKey}mt`)?.value||'').trim(),
+        sauce: (document.getElementById(`e-${dishKey}sc`)?.value||'').trim(),
+        garnish: (document.getElementById(`e-${dishKey}ga`)?.value||'').trim(),
+        topping: (document.getElementById(`e-${dishKey}tp`)?.value||'').trim(),
+      });
     }
   });
-
-  const note = (document.getElementById('edit-note')?.value||'').trim();
 
   store[idx] = {
     ...r,
     date: newDate,
     dishes,
-    note,
+    note: (document.getElementById('edit-note')?.value||'').trim(),
     updatedAt: new Date().toLocaleString('ja-JP'),
   };
 
@@ -1361,8 +1475,6 @@ function saveEdit(){
   closeEditModal();
   renderHistory();
   renderStats();
-
-  // 保存完了トースト
   showToast('✅ 保存しました');
 }
 
