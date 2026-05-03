@@ -1642,199 +1642,135 @@ function showToast(msg){
 }
 
 // ═══════════════════════════════════
-// 印刷
+// 印刷（新ウィンドウ方式・iPhone対応）
 // ═══════════════════════════════════
 
-// 入力中の内容をそのまま印刷
 function printCurrent(){
-  const date = document.getElementById('inp-date').value;
-  const note = (document.getElementById('inp-note').value||'').trim();
+  const date     = document.getElementById('inp-date').value;
+  const note     = (document.getElementById('inp-note').value||'').trim();
   const customer = (document.getElementById('inp-customer').value||'').trim();
-  const dishes = collectInputData();
-  const mode = currentMode;
-  buildPrintSheet({ date, mode, note, customer, dishes });
-  window.print();
+  const dishes   = collectInputData();
+  const mode     = currentMode;
+  openPrintWindow({ date, mode, note, customer, dishes });
 }
 
-// 履歴から印刷
 function printRecord(id){
   const r = loadStore().find(r => r.id === id);
   if(!r) return;
-  buildPrintSheet(r);
-  window.print();
+  openPrintWindow(r);
 }
 
-// A4印刷シートを組み立て
-function buildPrintSheet(r){
-  const isL = r.mode === 'lunch';
-  const col  = isL ? '#3a6b45' : '#1e3352';
-  const colM = isL ? '#5a9468' : '#2e5080';
-  const bg   = isL ? '#eef7f0' : '#edf2f9';
-  const borderC = isL ? '#b8d4bc' : '#b8cce0';
-  const lineC   = isL ? '#d0e8d4' : '#d4e2f0';
-  const label   = isL ? '☀ Lunch' : '🌙 Dinner';
-  const kanjiList = ['','一','二','三','四','五','六','七','八','九'];
+// 新しいウィンドウにA4HTMLを生成して印刷
+function openPrintWindow(r){
+  const html = buildPrintHTML(r);
+  const win  = window.open('', '_blank');
+  if(!win){ alert('ポップアップをブロックされています。ブラウザの設定でポップアップを許可してください。'); return; }
+  win.document.write(html);
+  win.document.close();
+  // フォント読み込みを待ってから印刷
+  setTimeout(()=>{ win.focus(); win.print(); }, 800);
+}
 
-  // 日付・曜日
+// A4印刷用HTMLを文字列で生成
+function buildPrintHTML(r){
+  const isL    = r.mode === 'lunch';
+  const col    = isL ? '#3a6b45' : '#1e3352';
+  const colM   = isL ? '#5a9468' : '#2e5080';
+  const bg     = isL ? '#eef7f0' : '#edf2f9';
+  const borderC= isL ? '#b8d4bc' : '#b8cce0';
+  const lineC  = isL ? '#d0e8d4' : '#d4e2f0';
+  const label  = isL ? '☀ Lunch' : '🌙 Dinner';
+
   const days = ['日','月','火','水','木','金','土'];
-  let dateStr = '　　　　年　　月　　日';
-  let activeDayN = -1;
+  let dateStr = '', activeDayN = -1;
   if(r.date){
     const d = new Date(r.date + 'T00:00:00');
     activeDayN = d.getDay();
     dateStr = `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${days[activeDayN]}）`;
   }
   const dayLabels = [{l:'月',v:1},{l:'火',v:2},{l:'水',v:3},{l:'木',v:4},{l:'金',v:5},{l:'土',v:6},{l:'日',v:0}];
-  const daysHtml = dayLabels.map(d=>`
-    <div style="width:15px;height:15px;border-radius:50%;
-      border:1pt solid ${d.v===activeDayN ? col : borderC};
-      background:${d.v===activeDayN ? col : 'transparent'};
-      color:${d.v===activeDayN ? '#fff' : '#7a7a7a'};
-      display:flex;align-items:center;justify-content:center;
-      font-size:5.5pt;font-family:'Shippori Mincho B1',serif;
-      font-weight:${d.v===activeDayN?'700':'400'}">${d.l}</div>`).join('');
+  const daysHtml = dayLabels.map(d=>`<div style="width:14px;height:14px;border-radius:50%;border:1pt solid ${d.v===activeDayN?col:borderC};background:${d.v===activeDayN?col:'transparent'};color:${d.v===activeDayN?'#fff':'#7a7a7a'};display:flex;align-items:center;justify-content:center;font-size:5pt;font-family:serif;font-weight:${d.v===activeDayN?700:400}">${d.l}</div>`).join('');
 
-  // フィールド行（印刷用・付け合わせなし）
-  function pField(label, val){
-    return `<div style="display:flex;align-items:center;flex:1;border-bottom:1pt solid ${lineC};padding:0.2mm 0;gap:3px;min-height:0">
-      <span style="font-size:4.8pt;font-weight:700;color:#7a7a7a;letter-spacing:.08em;white-space:nowrap;min-width:30px">${label}</span>
-      <span style="font-family:'Shippori Mincho B1',serif;font-size:8.5pt;color:#2a2a2a;flex:1;word-break:break-all;line-height:1.1">${val||''}</span>
-    </div>`;
+  function pField(lb, val){
+    return `<div style="display:flex;align-items:center;flex:1;border-bottom:0.5pt solid ${lineC};padding:0.3mm 0;gap:2px;min-height:0"><span style="font-size:4.8pt;font-weight:700;color:#777;white-space:nowrap;min-width:28px">${lb}</span><span style="font-size:8.5pt;color:#1a1a1a;flex:1;word-break:break-all;line-height:1.1">${val||''}</span></div>`;
+  }
+  function dishHead(label, hcol){
+    return `<div style="flex-shrink:0;background:${hcol};padding:1.6mm 2.5mm"><span style="font-size:7.5pt;font-weight:700;color:#fff;letter-spacing:.06em;display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${label}</span></div>`;
+  }
+  function normalFields(dish){
+    return [['料理名',dish.name],['食材',dish.ingredient],['調理法',dish.method],['ソース',dish.sauce],['トッピング',dish.topping]].map(([l,v])=>pField(l,v)).join('');
   }
 
-  function pDishHead(label, headCol){
-    return `<div style="flex-shrink:0;background:${headCol};padding:1.8mm 2.5mm;display:flex;align-items:center;gap:4px">
-      <span style="font-family:'Shippori Mincho B1',serif;font-size:8pt;font-weight:700;color:#fff;letter-spacing:.08em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${label}</span>
-    </div>`;
-  }
-
-  // 通常皿の5フィールド（付け合わせなし）
-  function normalDishFields(dish){
-    return [
-      ['料理名',dish.name],['食材',dish.ingredient],
-      ['調理法',dish.method],['ソース',dish.sauce],
-      ['トッピング',dish.topping]
-    ].map(([lb,v])=>pField(lb,v)).join('');
-  }
-
-  // 皿HTML生成
-  let dishesHtml = '';
+  let body = '';
 
   if(isL){
-    // ─ ランチ：オードブル（固定高） + 残り6皿（2列×3行）─
-    const app     = r.dishes.find(d => d.isApp  || d.key==='app'  || d.name==='オードブル盛り合わせ');
-    const normals = r.dishes.filter(d => !d.isApp && d.key!=='app' && d.name!=='オードブル盛り合わせ');
+    // ランチ：オードブル（固定高） + 6皿（2列×3行）
+    const app     = r.dishes.find(d=> d.isApp || d.key==='app' || d.name==='オードブル盛り合わせ');
+    const normals = r.dishes.filter(d=>!d.isApp && d.key!=='app' && d.name!=='オードブル盛り合わせ');
 
     if(app){
-      const itemsHtml = (app.items||[]).map((it,i)=>`
-        <div style="background:#f4fbf4;padding:2mm 2.5mm;display:flex;flex-direction:column;">
-          <div style="font-size:5.5pt;font-weight:700;color:${col};letter-spacing:.08em;margin-bottom:1mm;font-family:'Shippori Mincho B1',serif;flex-shrink:0">${it.point||['①','②','③'][i]} ${['一点目','二点目','三点目'][i]}</div>
-          ${['料理名','食材','調理法','ソース'].map((lb,j)=>pField(lb,[it.name,it.ingredient,it.method,it.sauce][j])).join('')}
-        </div>`).join('');
-      dishesHtml += `
-        <div style="flex-shrink:0;height:62mm;border:1.2pt solid ${borderC};border-radius:4pt;overflow:hidden;display:flex;flex-direction:column;margin-bottom:2mm">
-          <div style="flex-shrink:0;background:${col};padding:2mm 3mm;display:flex;align-items:center;gap:6px">
-            <span style="font-family:'Shippori Mincho B1',serif;font-size:9pt;font-weight:700;color:#fff;letter-spacing:.1em;flex:1">オードブル盛り合わせ</span>
-            <span style="font-size:6pt;color:rgba(255,255,255,.7)">3点盛り</span>
-          </div>
-          <div style="flex:1;display:grid;grid-template-columns:1fr 1fr 1fr;background:${borderC};gap:1pt;overflow:hidden">
-            ${itemsHtml}
-          </div>
-        </div>`;
+      const pts = (app.items||[]).map((it,i)=>`<div style="background:#f4fbf4;padding:2mm 2.5mm;display:flex;flex-direction:column;border-right:0.5pt solid ${borderC}"><div style="font-size:5.5pt;font-weight:700;color:${col};margin-bottom:1mm">${it.point||['①','②','③'][i]} ${['一点目','二点目','三点目'][i]}</div>${['料理名','食材','調理法','ソース'].map((lb,j)=>pField(lb,[it.name,it.ingredient,it.method,it.sauce][j])).join('')}</div>`).join('');
+      body += `<div style="flex-shrink:0;height:60mm;border:1pt solid ${borderC};border-radius:3pt;overflow:hidden;display:flex;flex-direction:column;margin-bottom:2mm"><div style="flex-shrink:0;background:${col};padding:2mm 3mm;display:flex;align-items:center;gap:6px"><span style="font-size:8.5pt;font-weight:700;color:#fff;flex:1">オードブル盛り合わせ</span><span style="font-size:5.5pt;color:rgba(255,255,255,.7)">3点盛り</span></div><div style="flex:1;display:grid;grid-template-columns:1fr 1fr 1fr;overflow:hidden">${pts}</div></div>`;
     }
-
-    // 残り6皿：2列×3行
-    dishesHtml += `<div style="flex:1;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:repeat(3,1fr);gap:1.8mm;min-height:0">`;
+    body += `<div style="flex:1;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:repeat(3,1fr);gap:1.5mm;min-height:0">`;
     normals.forEach((dish,i)=>{
-      const hc = i%2===0 ? colM : col;
-      dishesHtml += `
-        <div style="border:1pt solid ${borderC};border-radius:3pt;overflow:hidden;display:flex;flex-direction:column;min-height:0">
-          ${pDishHead(dish.name||'料理', hc)}
-          <div style="flex:1;padding:1.2mm 2mm;display:flex;flex-direction:column;justify-content:space-between;background:#fff;overflow:hidden;min-height:0">
-            ${normalDishFields(dish)}
-          </div>
-        </div>`;
+      body += `<div style="border:1pt solid ${borderC};border-radius:3pt;overflow:hidden;display:flex;flex-direction:column;min-height:0">${dishHead(dish.name||'料理',i%2===0?colM:col)}<div style="flex:1;padding:1mm 2mm;display:flex;flex-direction:column;justify-content:space-between;background:#fff;min-height:0">${normalFields(dish)}</div></div>`;
     });
-    dishesHtml += `</div>`;
+    body += `</div>`;
 
   } else {
-    // ─ ディナー：9皿（3列×3行）+ 肉料理セレクト（4列横並び）─
-    const normals = r.dishes.filter(d => !d.isMeat && d.key!=='meat' && d.name!=='肉料理セレクト');
-    const meat    = r.dishes.find(d =>  d.isMeat || d.key==='meat' || d.name==='肉料理セレクト');
+    // ディナー：9皿（3列×3行） + 肉料理セレクト（4列）
+    const normals = r.dishes.filter(d=>!d.isMeat && d.key!=='meat' && d.name!=='肉料理セレクト');
+    const meat    = r.dishes.find(d=> d.isMeat || d.key==='meat' || d.name==='肉料理セレクト');
     const hCols   = [colM,col,'#24426a',colM,col,'#24426a',colM,col,'#24426a'];
 
-    // 9皿グリッド
-    dishesHtml += `<div style="flex:1;display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:repeat(3,1fr);gap:1.8mm;min-height:0;margin-bottom:2mm">`;
+    body += `<div style="flex:1;display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:repeat(3,1fr);gap:1.5mm;min-height:0;margin-bottom:1.5mm">`;
     normals.forEach((dish,i)=>{
-      dishesHtml += `
-        <div style="border:1pt solid ${borderC};border-radius:3pt;overflow:hidden;display:flex;flex-direction:column;min-height:0">
-          ${pDishHead(dish.name||'料理', hCols[i]||colM)}
-          <div style="flex:1;padding:1.2mm 2mm;display:flex;flex-direction:column;justify-content:space-between;background:#fff;overflow:hidden;min-height:0">
-            ${normalDishFields(dish)}
-          </div>
-        </div>`;
+      body += `<div style="border:1pt solid ${borderC};border-radius:3pt;overflow:hidden;display:flex;flex-direction:column;min-height:0">${dishHead(dish.name||'料理',hCols[i]||colM)}<div style="flex:1;padding:1mm 2mm;display:flex;flex-direction:column;justify-content:space-between;background:#fff;min-height:0">${normalFields(dish)}</div></div>`;
     });
-    dishesHtml += `</div>`;
+    body += `</div>`;
 
-    // 肉料理セレクト（4択横並び）
     if(meat && meat.items){
-      const meatItems = meat.items.map((it,i)=>`
-        <div style="flex:1;background:${i%2===0?'#f4f6fb':'#eef2f8'};padding:2mm 2.5mm;display:flex;flex-direction:column;border-right:${i<3?`1pt solid ${borderC}`:'none'}">
-          <div style="font-size:5.5pt;font-weight:700;color:${col};letter-spacing:.08em;margin-bottom:1mm;font-family:'Shippori Mincho B1',serif;flex-shrink:0">${it.point} 選択肢${'ABCD'[i]}</div>
-          ${['料理名','食材','調理法','ソース'].map((lb,j)=>pField(lb,[it.name,it.ingredient,it.method,it.sauce][j])).join('')}
-        </div>`).join('');
-      dishesHtml += `
-        <div style="flex-shrink:0;height:36mm;border:1.2pt solid ${borderC};border-radius:4pt;overflow:hidden;display:flex;flex-direction:column">
-          <div style="flex-shrink:0;background:${col};padding:1.8mm 3mm;display:flex;align-items:center;gap:6px">
-            <span style="font-family:'Shippori Mincho B1',serif;font-size:8.5pt;font-weight:700;color:#fff;letter-spacing:.1em;flex:1">🥩 肉料理セレクト</span>
-            <span style="font-size:6pt;color:rgba(255,255,255,.7)">4種類から選択</span>
-          </div>
-          <div style="flex:1;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;overflow:hidden">
-            ${meatItems}
-          </div>
-        </div>`;
+      const mpts = meat.items.map((it,i)=>`<div style="flex:1;background:${i%2===0?'#f4f6fb':'#eef2f8'};padding:1.5mm 2mm;display:flex;flex-direction:column;border-right:${i<3?`0.5pt solid ${borderC}`:'none'}"><div style="font-size:5pt;font-weight:700;color:${col};margin-bottom:1mm">${it.point} 選択肢${'ABCD'[i]}</div>${['料理名','食材','調理法','ソース'].map((lb,j)=>pField(lb,[it.name,it.ingredient,it.method,it.sauce][j])).join('')}</div>`).join('');
+      body += `<div style="flex-shrink:0;height:34mm;border:1pt solid ${borderC};border-radius:3pt;overflow:hidden;display:flex;flex-direction:column"><div style="flex-shrink:0;background:${col};padding:1.5mm 3mm;display:flex;align-items:center;gap:6px"><span style="font-size:8pt;font-weight:700;color:#fff;flex:1">🥩 肉料理セレクト</span><span style="font-size:5.5pt;color:rgba(255,255,255,.7)">4種類から選択</span></div><div style="flex:1;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;overflow:hidden">${mpts}</div></div>`;
     }
   }
 
-  // 備考
-  const noteHtml = `
-    <div style="flex-shrink:0;border:1pt solid ${borderC};border-radius:4pt;overflow:hidden;margin-top:2mm">
-      <div style="background:#b89040;padding:1.5mm 3mm;font-family:'Shippori Mincho B1',serif;font-size:7pt;font-weight:700;color:#fff;letter-spacing:.12em">📝 備考・こだわりポイント</div>
-      <div style="padding:2mm 3mm;font-family:'Shippori Mincho B1',serif;font-size:9pt;color:#2a2a2a;min-height:9mm">${r.note||''}</div>
-    </div>`;
+  const noteHtml = `<div style="flex-shrink:0;border:1pt solid ${borderC};border-radius:3pt;overflow:hidden;margin-top:1.5mm"><div style="background:#b89040;padding:1.2mm 3mm;font-size:7pt;font-weight:700;color:#fff;letter-spacing:.1em">📝 備考</div><div style="padding:1.5mm 3mm;font-size:8.5pt;color:#1a1a1a;min-height:7mm">${r.note||''}</div></div>`;
 
-  // シート組み立て
-  document.getElementById('print-sheet').innerHTML = `
-    <div style="position:absolute;left:0;top:0;bottom:0;width:5mm;background:linear-gradient(180deg,${col},${colM})"></div>
-
-    <!-- ヘッダー -->
-    <div style="position:absolute;top:0;left:0;right:0;height:20mm;padding:4.5mm 8mm 3mm 13mm;background:${bg};border-bottom:2pt solid ${col};display:flex;align-items:flex-end;justify-content:space-between">
-      <div>
-        <div style="font-family:'Shippori Mincho B1',serif;font-size:7pt;color:${colM};letter-spacing:.2em;margin-bottom:1mm">YOUSHOKU DINING NAKAMURA</div>
-        <div style="font-family:'Shippori Mincho B1',serif;font-size:18pt;font-weight:700;color:${col};letter-spacing:.06em;display:flex;align-items:center;gap:7px;line-height:1">
-          献立メモ
-          <span style="font-size:8pt;background:${col};color:#fff;padding:1px 9px;border-radius:20px;letter-spacing:.1em;font-weight:500">${label}</span>
-        </div>
-      </div>
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
-        <div style="font-family:'Shippori Mincho B1',serif;font-size:10pt;font-weight:700;color:#1a1a1a;border-bottom:1.5pt solid #1a1a1a;min-width:50mm;padding-bottom:1px;text-align:right">${dateStr}</div>
-        ${r.customer?`<div style="font-family:'Shippori Mincho B1',serif;font-size:10pt;font-weight:700;color:${col};letter-spacing:.06em">👤 ${r.customer}</div>`:''}
-        <div style="display:flex;gap:2px">${daysHtml}</div>
-      </div>
+  return `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@400;700;800&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  @page{size:A4 portrait;margin:0}
+  html,body{width:210mm;height:297mm;overflow:hidden;background:#f9f6f0;font-family:'Shippori Mincho B1',serif}
+</style>
+</head><body>
+<div style="position:relative;width:210mm;height:297mm;overflow:hidden;background:#f9f6f0">
+  <div style="position:absolute;left:0;top:0;bottom:0;width:5mm;background:linear-gradient(180deg,${col},${colM})"></div>
+  <div style="position:absolute;top:0;left:0;right:0;height:19mm;padding:4mm 8mm 3mm 12mm;background:${bg};border-bottom:2pt solid ${col};display:flex;align-items:flex-end;justify-content:space-between">
+    <div>
+      <div style="font-size:6.5pt;color:${colM};letter-spacing:.18em;margin-bottom:1mm">YOUSHOKU DINING NAKAMURA</div>
+      <div style="font-size:17pt;font-weight:800;color:${col};letter-spacing:.06em;display:flex;align-items:center;gap:6px;line-height:1">献立メモ<span style="font-size:8pt;background:${col};color:#fff;padding:1px 8px;border-radius:20px;letter-spacing:.1em;font-weight:500">${label}</span></div>
     </div>
-
-    <!-- ボディ -->
-    <div style="position:absolute;top:20mm;left:13mm;right:8mm;bottom:8mm;display:flex;flex-direction:column;gap:0;overflow:hidden">
-      ${dishesHtml}
-      ${noteHtml}
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+      <div style="font-size:9.5pt;font-weight:700;color:#1a1a1a;border-bottom:1pt solid #1a1a1a;min-width:48mm;padding-bottom:1px;text-align:right">${dateStr}</div>
+      ${r.customer?`<div style="font-size:9pt;font-weight:700;color:${col}">👤 ${r.customer}</div>`:''}
+      <div style="display:flex;gap:2px">${daysHtml}</div>
     </div>
+  </div>
+  <div style="position:absolute;top:19mm;left:12mm;right:7mm;bottom:7mm;display:flex;flex-direction:column">
+    ${body}
+    ${noteHtml}
+  </div>
+  <div style="position:absolute;bottom:0;left:12mm;right:7mm;height:6.5mm;border-top:0.5pt solid ${borderC};display:flex;justify-content:space-between;align-items:center">
+    <span style="font-size:5.5pt;color:#777;letter-spacing:.12em">洋食だいにんぐ なかむら ／ 熊野町</span>
+    <span style="font-size:5pt;color:#777;letter-spacing:.08em">地元食材 · 無添加 · 手作り調味料 · 1回転制</span>
+  </div>
+</div>
+<script>window.onload=function(){window.print()}<\/script>
+</body></html>`;
 
-    <!-- フッター -->
-    <div style="position:absolute;bottom:0;left:13mm;right:8mm;height:7mm;border-top:1pt solid ${borderC};display:flex;justify-content:space-between;align-items:center">
-      <span style="font-family:'Shippori Mincho B1',serif;font-size:6pt;color:#7a7a7a;letter-spacing:.14em">洋食だいにんぐ なかむら ／ 熊野町</span>
-      <span style="font-size:5.5pt;color:#7a7a7a;letter-spacing:.1em">地元食材 · 無添加 · 手作り調味料 · 1回転制</span>
-    </div>`;
-}
 
 // ═══════════════════════════════════
 // 集計
