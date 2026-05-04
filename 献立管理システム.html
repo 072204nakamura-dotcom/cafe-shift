@@ -1125,17 +1125,17 @@ function renderAiResult(data){
       const items=dish.items.map(it=>`
         <div class="app-sec">
           <div class="app-lbl"><div class="app-pt">${it.point}</div><span class="app-pt-txt">${it.point==='①'?'一点目':it.point==='②'?'二点目':'三点目'}</span></div>
-          <div class="frow"><div class="flbl">料理名</div><textarea class="finp" rows="1" oninput="autoResize(this)" id="air-a${it.point}-nm"></div>
-          <div class="frow"><div class="flbl">食材</div><textarea class="finp" rows="1" oninput="autoResize(this)" id="air-a${it.point}-ig"></div>
-          <div class="frow"><div class="flbl">調理法</div><textarea class="finp" rows="1" oninput="autoResize(this)" id="air-a${it.point}-mt"></div>
-          <div class="frow" style="border-bottom:none"><div class="flbl">ソース</div><textarea class="finp" rows="1" oninput="autoResize(this)" id="air-a${it.point}-sc"></div>
+          <div class="frow"><div class="flbl">料理名</div><textarea class="finp" rows="1" oninput="autoResize(this)" id="air-a${it.point}-nm">${it.name||''}</textarea></div>
+          <div class="frow"><div class="flbl">食材</div><textarea class="finp" rows="1" oninput="autoResize(this)" id="air-a${it.point}-ig">${it.ingredient||''}</textarea></div>
+          <div class="frow"><div class="flbl">調理法</div><textarea class="finp" rows="1" oninput="autoResize(this)" id="air-a${it.point}-mt">${it.method||''}</textarea></div>
+          <div class="frow" style="border-bottom:none"><div class="flbl">ソース</div><textarea class="finp" rows="1" oninput="autoResize(this)" id="air-a${it.point}-sc">${it.sauce||''}</textarea></div>
         </div>`).join('');
       card.innerHTML=`<div class="card-hd hd-green"><div class="hd-num">1</div><span class="hd-ttl">オードブル盛り合わせ</span><span class="hd-sub">3点盛り</span></div>${items}`;
     } else {
       const cls=isL?'hd-gm':'hd-nm';
       const fs=normalFields.map((f,i)=>`<div class="frow"${i===normalFields.length-1?' style="border-bottom:none"':''}>
         <div class="flbl">${f.lb}</div>
-        <textarea class="finp" rows="1" oninput="autoResize(this)" id="air-d${dish.num}-${f.id}">
+        <textarea class="finp" rows="1" oninput="autoResize(this)" id="air-d${dish.num}-${f.id}">${dish[f.id==='nm'?'name':f.id==='ig'?'ingredient':f.id==='mt'?'method':f.id==='sc'?'sauce':'topping']||''}</textarea>
       </div>`).join('');
       card.innerHTML=`<div class="card-hd ${cls}"><div class="hd-num">${dish.num}</div><span class="hd-ttl">${['','一','二','三','四','五','六','七','八','九'][dish.num]||dish.num}皿目</span></div>${fs}`;
     }
@@ -1422,10 +1422,10 @@ function openEdit(id){
             <div class="app-pt">${it.point}</div>
             <span class="app-pt-txt">${['一点目','二点目','三点目'][pi]}</span>
           </div>
-          <div class="frow"><div class="flbl">料理名</div><textarea class="finp" inputmode="text" rows="1" oninput="autoResize(this)" id="e-a${pi+1}nm" value="${esc(it.name)}"></div>
-          <div class="frow"><div class="flbl">食材</div><textarea class="finp" inputmode="text" rows="1" oninput="autoResize(this)" id="e-a${pi+1}ig" value="${esc(it.ingredient)}"></div>
-          <div class="frow"><div class="flbl">調理法</div><textarea class="finp" inputmode="text" rows="1" oninput="autoResize(this)" id="e-a${pi+1}mt" value="${esc(it.method)}"></div>
-          <div class="frow" style="border-bottom:none"><div class="flbl">ソース</div><textarea class="finp" inputmode="text" rows="1" oninput="autoResize(this)" id="e-a${pi+1}sc" value="${esc(it.sauce)}"></div>
+          <div class="frow"><div class="flbl">料理名</div><textarea class="finp" inputmode="text" rows="1" oninput="autoResize(this)" id="e-a${pi+1}nm">${esc(it.name)}</textarea></div>
+          <div class="frow"><div class="flbl">食材</div><textarea class="finp" inputmode="text" rows="1" oninput="autoResize(this)" id="e-a${pi+1}ig">${esc(it.ingredient)}</textarea></div>
+          <div class="frow"><div class="flbl">調理法</div><textarea class="finp" inputmode="text" rows="1" oninput="autoResize(this)" id="e-a${pi+1}mt">${esc(it.method)}</textarea></div>
+          <div class="frow" style="border-bottom:none"><div class="flbl">ソース</div><textarea class="finp" inputmode="text" rows="1" oninput="autoResize(this)" id="e-a${pi+1}sc">${esc(it.sauce)}</textarea></div>
         </div>`).join('');
       card.innerHTML = `<div class="card-hd ${hdMain}" style="cursor:grab">
         <span style="font-size:16px;margin-right:4px;opacity:.6">⠿</span>
@@ -1441,10 +1441,10 @@ function openEdit(id){
             <div class="app-pt" style="background:var(--nd)">${it.point}</div>
             <span class="app-pt-txt" style="color:var(--nd)">選択肢${'ABCD'[pi]}</span>
           </div>
-          <div class="frow"><div class="flbl">料理名</div><textarea class="finp" inputmode="text" rows="1" oninput="autoResize(this)" id="e-m${pi+1}nm" value="${esc(it.name)}"></div>
-          <div class="frow"><div class="flbl">食材</div><textarea class="finp" inputmode="text" rows="1" oninput="autoResize(this)" id="e-m${pi+1}ig" value="${esc(it.ingredient)}"></div>
-          <div class="frow"><div class="flbl">調理法</div><textarea class="finp" inputmode="text" rows="1" oninput="autoResize(this)" id="e-m${pi+1}mt" value="${esc(it.method)}"></div>
-          <div class="frow" style="border-bottom:none"><div class="flbl">ソース</div><textarea class="finp" inputmode="text" rows="1" oninput="autoResize(this)" id="e-m${pi+1}sc" value="${esc(it.sauce)}"></div>
+          <div class="frow"><div class="flbl">料理名</div><textarea class="finp" inputmode="text" rows="1" oninput="autoResize(this)" id="e-m${pi+1}nm">${esc(it.name)}</textarea></div>
+          <div class="frow"><div class="flbl">食材</div><textarea class="finp" inputmode="text" rows="1" oninput="autoResize(this)" id="e-m${pi+1}ig">${esc(it.ingredient)}</textarea></div>
+          <div class="frow"><div class="flbl">調理法</div><textarea class="finp" inputmode="text" rows="1" oninput="autoResize(this)" id="e-m${pi+1}mt">${esc(it.method)}</textarea></div>
+          <div class="frow" style="border-bottom:none"><div class="flbl">ソース</div><textarea class="finp" inputmode="text" rows="1" oninput="autoResize(this)" id="e-m${pi+1}sc">${esc(it.sauce)}</textarea></div>
         </div>`).join('');
       card.innerHTML = `<div class="card-hd ${hdMain}" style="cursor:grab">
         <span style="font-size:16px;margin-right:4px;opacity:.6">⠿</span>
@@ -1464,7 +1464,7 @@ function openEdit(id){
       ].map((f,fi,arr) => `
         <div class="frow"${fi===arr.length-1?' style="border-bottom:none"':''}>
           <div class="flbl">${f.lb}</div>
-          <textarea class="finp" inputmode="text" rows="1" oninput="autoResize(this)" id="e-${dishKey}${f.id}" value="${esc(f.val)}">
+          <textarea class="finp" inputmode="text" rows="1" oninput="autoResize(this)" id="e-${dishKey}${f.id}">${esc(f.val)}</textarea>
         </div>`).join('');
       card.innerHTML = `<div class="card-hd ${hdSub}" style="cursor:grab">
         <span style="font-size:16px;margin-right:4px;opacity:.6">⠿</span>
