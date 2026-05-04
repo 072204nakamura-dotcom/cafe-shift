@@ -239,21 +239,16 @@ body{background:var(--bg);font-family:'Zen Kaku Gothic New',sans-serif;color:var
 /* ══ 印刷専用スタイル ══ */
 @media print {
   @page { size: A4 portrait; margin: 0; }
-  body { background: white !important; }
-  .page, .top-bar, .tab-nav, .modal-overlay { display: none !important; }
-  #print-sheet { display: block !important; }
+  body > *:not(#_print_layer) { display: none !important; }
+  #_print_layer {
+    display: block !important;
+    position: fixed !important;
+    top: 0; left: 0;
+    width: 210mm; height: 297mm;
+    overflow: hidden;
+  }
 }
-
-#print-sheet {
-  display: none;
-  width: 210mm;
-  height: 297mm;
-  background: #f9f6f0;
-  font-family: 'Noto Sans JP', 'Zen Kaku Gothic New', sans-serif;
-  overflow: hidden;
-  position: fixed;
-  top: 0; left: 0;
-}
+#_print_layer { display: none; }
 </style>
 </head>
 <body>
@@ -504,8 +499,7 @@ body{background:var(--bg);font-family:'Zen Kaku Gothic New',sans-serif;color:var
   </div>
 </div>
 
-<!-- 印刷シート（JSで生成） -->
-<div id="print-sheet"></div>
+<!-- 印刷レイヤーはJSで動的生成 -->
 
 <script>
 // ═══════════════════════════════════
@@ -1660,18 +1654,26 @@ function printRecord(id){
   openPrintWindow(r);
 }
 
-// 新しいウィンドウにA4HTMLを生成して印刷
+// 印刷（同一ページ内のA4レイヤーを表示して印刷・iPhone Safari対応）
 function openPrintWindow(r){
   const html = buildPrintHTML(r);
-  const win  = window.open('', '_blank');
-  if(!win){ alert('ポップアップをブロックされています。ブラウザの設定でポップアップを許可してください。'); return; }
-  win.document.write(html);
-  win.document.close();
-  // フォント読み込みを待ってから印刷
-  setTimeout(()=>{ win.focus(); win.print(); }, 800);
+  // 既存の印刷レイヤーを削除
+  const old = document.getElementById('_print_layer');
+  if(old) old.remove();
+  // 新しい印刷レイヤーを作成
+  const div = document.createElement('div');
+  div.id = '_print_layer';
+  div.innerHTML = html;
+  document.body.appendChild(div);
+  // 少し待ってから印刷
+  setTimeout(()=>{
+    window.print();
+    // 印刷ダイアログを閉じた後にレイヤーを削除
+    setTimeout(()=>{ div.remove(); }, 2000);
+  }, 300);
 }
 
-// A4印刷用HTMLを文字列で生成
+// A4印刷用HTMLを生成（divのみ・同一ページ内に挿入）
 function buildPrintHTML(r){
   const isL    = r.mode === 'lunch';
   const col    = isL ? '#3a6b45' : '#1e3352';
@@ -1738,15 +1740,7 @@ function buildPrintHTML(r){
 
   const noteHtml = `<div style="flex-shrink:0;border:1pt solid ${borderC};border-radius:3pt;overflow:hidden;margin-top:1.5mm"><div style="background:#b89040;padding:1.2mm 3mm;font-size:7pt;font-weight:700;color:#fff;letter-spacing:.1em">📝 備考</div><div style="padding:1.5mm 3mm;font-size:8.5pt;color:#1a1a1a;min-height:7mm">${r.note||''}</div></div>`;
 
-  return `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@400;700;800&display=swap');
-  *{margin:0;padding:0;box-sizing:border-box}
-  @page{size:A4 portrait;margin:0}
-  html,body{width:210mm;height:297mm;overflow:hidden;background:#f9f6f0;font-family:'Shippori Mincho B1',serif}
-</style>
-</head><body>
-<div style="position:relative;width:210mm;height:297mm;overflow:hidden;background:#f9f6f0">
+  return `<div style="position:fixed;top:0;left:0;width:210mm;height:297mm;overflow:hidden;background:#f9f6f0;z-index:9999;font-family:'Shippori Mincho B1',serif">
   <div style="position:absolute;left:0;top:0;bottom:0;width:5mm;background:linear-gradient(180deg,${col},${colM})"></div>
   <div style="position:absolute;top:0;left:0;right:0;height:19mm;padding:4mm 8mm 3mm 12mm;background:${bg};border-bottom:2pt solid ${col};display:flex;align-items:flex-end;justify-content:space-between">
     <div>
@@ -1767,9 +1761,8 @@ function buildPrintHTML(r){
     <span style="font-size:5.5pt;color:#777;letter-spacing:.12em">洋食だいにんぐ なかむら ／ 熊野町</span>
     <span style="font-size:5pt;color:#777;letter-spacing:.08em">地元食材 · 無添加 · 手作り調味料 · 1回転制</span>
   </div>
-</div>
-<script>window.onload=function(){window.print()}<\/script>
-</body></html>`;
+</div>`;
+} // end buildPrintHTML
 
 
 // ═══════════════════════════════════
