@@ -120,7 +120,7 @@ body{background:var(--bg);font-family:'Zen Kaku Gothic New',sans-serif;color:var
 .frow{display:flex;align-items:stretch;border-bottom:1px solid var(--line);min-height:50px}
 .frow:last-child{border-bottom:none}
 .flbl{width:88px;flex-shrink:0;display:flex;align-items:center;padding:9px 8px 9px 0;font-size:10px;font-weight:700;color:var(--mid);letter-spacing:.1em;border-right:1px solid var(--line)}
-.finp{flex:1;border:none;outline:none;padding:9px 12px;font-family:'Zen Kaku Gothic New',sans-serif;font-size:15px;color:var(--ink);background:transparent;-webkit-appearance:none;border-radius:0}
+.finp{flex:1;border:none;outline:none;padding:9px 12px;font-family:'Zen Kaku Gothic New',sans-serif;font-size:15px;color:var(--ink);background:transparent;-webkit-appearance:none;border-radius:0;resize:none;overflow:hidden;min-height:44px;line-height:1.5;word-break:break-all}
 .finp::placeholder{color:#c8c0b8;font-size:12px}
 .finp:focus{background:var(--gxl)}
 .dinner-mode .finp:focus{background:var(--nxl)}
@@ -757,7 +757,7 @@ function renderInputDishes(savedOrder){
       const pts=['①','②','③'].map((pt,pi)=>{
         const rows=selectFields.map((f,fi)=>`<div class="frow"${fi===selectFields.length-1?' style="border-bottom:none"':''}>
           <div class="flbl">${f.lb}</div>
-          <input class="finp" type="text" inputmode="text" id="i-a${pi+1}${f.id}">
+          <textarea class="finp" inputmode="text" rows="1" id="i-a${pi+1}${f.id}" oninput="autoResize(this)"></textarea>
         </div>`).join('');
         return `<div class="app-sec">
           <div class="app-lbl">
@@ -778,7 +778,7 @@ function renderInputDishes(savedOrder){
       const pts=['①','②','③','④'].map((pt,pi)=>{
         const rows=selectFields.map((f,fi)=>`<div class="frow"${fi===selectFields.length-1?' style="border-bottom:none"':''}>
           <div class="flbl">${f.lb}</div>
-          <input class="finp" type="text" inputmode="text" id="i-m${pi+1}${f.id}">
+          <textarea class="finp" inputmode="text" rows="1" id="i-m${pi+1}${f.id}" oninput="autoResize(this)"></textarea>
         </div>`).join('');
         return `<div class="app-sec" style="border-bottom:${pi<3?'2px solid var(--nl)':'none'}">
           <div class="app-lbl">
@@ -799,8 +799,8 @@ function renderInputDishes(savedOrder){
       const headId = `hd-${key}`;
       const rows=normalFields.map((f,fi)=>`<div class="frow"${fi===normalFields.length-1?' style="border-bottom:none"':''}>
         <div class="flbl">${f.lb}</div>
-        <input class="finp" type="text" inputmode="text" id="i-${key}${f.id}"
-          ${f.id==='nm'?`oninput="updateDishHead('${headId}',this.value)"`:''}>
+        <textarea class="finp" inputmode="text" rows="1" id="i-${key}${f.id}"
+          ${f.id==='nm'?`oninput="updateDishHead('${headId}',this.value);autoResize(this)"`:'oninput="autoResize(this)"'}></textarea>
       </div>`).join('');
       card.innerHTML=`
         <div class="card-hd ${hdClsSub}" style="cursor:grab">
@@ -917,6 +917,20 @@ function updateDishHead(headId, val){
   if(!el) return;
   el.textContent = val.trim() || '料理名を入力してください';
   el.style.opacity = val.trim() ? '1' : '0.5';
+}
+
+// textareaの高さを内容に合わせて自動拡張
+function autoResize(el){
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 'px';
+}
+
+// 全てのfinpにautoResizeを適用
+function applyAutoResize(){
+  document.querySelectorAll('.finp').forEach(el=>{
+    el.addEventListener('input', ()=> autoResize(el));
+    autoResize(el);
+  });
 }
 function collectInputData(){
   const mode=currentMode;
@@ -1111,17 +1125,17 @@ function renderAiResult(data){
       const items=dish.items.map(it=>`
         <div class="app-sec">
           <div class="app-lbl"><div class="app-pt">${it.point}</div><span class="app-pt-txt">${it.point==='①'?'一点目':it.point==='②'?'二点目':'三点目'}</span></div>
-          <div class="frow"><div class="flbl">料理名</div><input class="finp" value="${it.name||''}" id="air-a${it.point}-nm"></div>
-          <div class="frow"><div class="flbl">食材</div><input class="finp" value="${it.ingredient||''}" id="air-a${it.point}-ig"></div>
-          <div class="frow"><div class="flbl">調理法</div><input class="finp" value="${it.method||''}" id="air-a${it.point}-mt"></div>
-          <div class="frow" style="border-bottom:none"><div class="flbl">ソース</div><input class="finp" value="${it.sauce||''}" id="air-a${it.point}-sc"></div>
+          <div class="frow"><div class="flbl">料理名</div><textarea class="finp" rows="1" oninput="autoResize(this)" id="air-a${it.point}-nm"></div>
+          <div class="frow"><div class="flbl">食材</div><textarea class="finp" rows="1" oninput="autoResize(this)" id="air-a${it.point}-ig"></div>
+          <div class="frow"><div class="flbl">調理法</div><textarea class="finp" rows="1" oninput="autoResize(this)" id="air-a${it.point}-mt"></div>
+          <div class="frow" style="border-bottom:none"><div class="flbl">ソース</div><textarea class="finp" rows="1" oninput="autoResize(this)" id="air-a${it.point}-sc"></div>
         </div>`).join('');
       card.innerHTML=`<div class="card-hd hd-green"><div class="hd-num">1</div><span class="hd-ttl">オードブル盛り合わせ</span><span class="hd-sub">3点盛り</span></div>${items}`;
     } else {
       const cls=isL?'hd-gm':'hd-nm';
       const fs=normalFields.map((f,i)=>`<div class="frow"${i===normalFields.length-1?' style="border-bottom:none"':''}>
         <div class="flbl">${f.lb}</div>
-        <input class="finp" value="${(dish[f.id==='nm'?'name':f.id==='ig'?'ingredient':f.id==='mt'?'method':f.id==='sc'?'sauce':f.id==='ga'?'garnish':'topping'])||''}" id="air-d${dish.num}-${f.id}">
+        <textarea class="finp" rows="1" oninput="autoResize(this)" id="air-d${dish.num}-${f.id}">
       </div>`).join('');
       card.innerHTML=`<div class="card-hd ${cls}"><div class="hd-num">${dish.num}</div><span class="hd-ttl">${['','一','二','三','四','五','六','七','八','九'][dish.num]||dish.num}皿目</span></div>${fs}`;
     }
@@ -1408,10 +1422,10 @@ function openEdit(id){
             <div class="app-pt">${it.point}</div>
             <span class="app-pt-txt">${['一点目','二点目','三点目'][pi]}</span>
           </div>
-          <div class="frow"><div class="flbl">料理名</div><input class="finp" type="text" inputmode="text" id="e-a${pi+1}nm" value="${esc(it.name)}"></div>
-          <div class="frow"><div class="flbl">食材</div><input class="finp" type="text" inputmode="text" id="e-a${pi+1}ig" value="${esc(it.ingredient)}"></div>
-          <div class="frow"><div class="flbl">調理法</div><input class="finp" type="text" inputmode="text" id="e-a${pi+1}mt" value="${esc(it.method)}"></div>
-          <div class="frow" style="border-bottom:none"><div class="flbl">ソース</div><input class="finp" type="text" inputmode="text" id="e-a${pi+1}sc" value="${esc(it.sauce)}"></div>
+          <div class="frow"><div class="flbl">料理名</div><textarea class="finp" inputmode="text" rows="1" oninput="autoResize(this)" id="e-a${pi+1}nm" value="${esc(it.name)}"></div>
+          <div class="frow"><div class="flbl">食材</div><textarea class="finp" inputmode="text" rows="1" oninput="autoResize(this)" id="e-a${pi+1}ig" value="${esc(it.ingredient)}"></div>
+          <div class="frow"><div class="flbl">調理法</div><textarea class="finp" inputmode="text" rows="1" oninput="autoResize(this)" id="e-a${pi+1}mt" value="${esc(it.method)}"></div>
+          <div class="frow" style="border-bottom:none"><div class="flbl">ソース</div><textarea class="finp" inputmode="text" rows="1" oninput="autoResize(this)" id="e-a${pi+1}sc" value="${esc(it.sauce)}"></div>
         </div>`).join('');
       card.innerHTML = `<div class="card-hd ${hdMain}" style="cursor:grab">
         <span style="font-size:16px;margin-right:4px;opacity:.6">⠿</span>
@@ -1427,10 +1441,10 @@ function openEdit(id){
             <div class="app-pt" style="background:var(--nd)">${it.point}</div>
             <span class="app-pt-txt" style="color:var(--nd)">選択肢${'ABCD'[pi]}</span>
           </div>
-          <div class="frow"><div class="flbl">料理名</div><input class="finp" type="text" inputmode="text" id="e-m${pi+1}nm" value="${esc(it.name)}"></div>
-          <div class="frow"><div class="flbl">食材</div><input class="finp" type="text" inputmode="text" id="e-m${pi+1}ig" value="${esc(it.ingredient)}"></div>
-          <div class="frow"><div class="flbl">調理法</div><input class="finp" type="text" inputmode="text" id="e-m${pi+1}mt" value="${esc(it.method)}"></div>
-          <div class="frow" style="border-bottom:none"><div class="flbl">ソース</div><input class="finp" type="text" inputmode="text" id="e-m${pi+1}sc" value="${esc(it.sauce)}"></div>
+          <div class="frow"><div class="flbl">料理名</div><textarea class="finp" inputmode="text" rows="1" oninput="autoResize(this)" id="e-m${pi+1}nm" value="${esc(it.name)}"></div>
+          <div class="frow"><div class="flbl">食材</div><textarea class="finp" inputmode="text" rows="1" oninput="autoResize(this)" id="e-m${pi+1}ig" value="${esc(it.ingredient)}"></div>
+          <div class="frow"><div class="flbl">調理法</div><textarea class="finp" inputmode="text" rows="1" oninput="autoResize(this)" id="e-m${pi+1}mt" value="${esc(it.method)}"></div>
+          <div class="frow" style="border-bottom:none"><div class="flbl">ソース</div><textarea class="finp" inputmode="text" rows="1" oninput="autoResize(this)" id="e-m${pi+1}sc" value="${esc(it.sauce)}"></div>
         </div>`).join('');
       card.innerHTML = `<div class="card-hd ${hdMain}" style="cursor:grab">
         <span style="font-size:16px;margin-right:4px;opacity:.6">⠿</span>
@@ -1450,7 +1464,7 @@ function openEdit(id){
       ].map((f,fi,arr) => `
         <div class="frow"${fi===arr.length-1?' style="border-bottom:none"':''}>
           <div class="flbl">${f.lb}</div>
-          <input class="finp" type="text" inputmode="text" id="e-${dishKey}${f.id}" value="${esc(f.val)}">
+          <textarea class="finp" inputmode="text" rows="1" oninput="autoResize(this)" id="e-${dishKey}${f.id}" value="${esc(f.val)}">
         </div>`).join('');
       card.innerHTML = `<div class="card-hd ${hdSub}" style="cursor:grab">
         <span style="font-size:16px;margin-right:4px;opacity:.6">⠿</span>
@@ -1861,10 +1875,8 @@ document.addEventListener('DOMContentLoaded',()=>{
   initDate('inp-date','inp-days');
   initDate('ai-date','ai-days');
   renderStats();
-  // GAS URLが設定済みなら起動時に同期
-  if(GAS_URL){
-    loadFromGAS();
-  }
+  applyAutoResize();
+  if(GAS_URL){ loadFromGAS(); }
 });
 </script>
 </body>
