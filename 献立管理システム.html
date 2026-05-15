@@ -1267,7 +1267,8 @@ function renderHistory(){
           <button class="btn-sm" onclick="showDetail(${r.id})">詳細</button>
           <button class="btn-sm" style="border-color:var(--gm);color:var(--gd)" onclick="openEdit(${r.id})">✏️ 編集</button>
           <button class="btn-sm" style="border-color:var(--nm);color:var(--nm)" onclick="copyRecord(${r.id})">📋 コピー</button>
-          <button class="btn-sm" style="border-color:var(--gold);color:var(--gold)" onclick="printRecord(${r.id})">🖨</button>
+          <button class="btn-sm" style="border-color:var(--gold);color:var(--gold)" onclick="printRecord(${r.id})">🖨 印刷</button>
+          <button class="btn-sm" style="border-color:#8b4513;color:#8b4513;font-weight:700" onclick="printOshinagaki(${r.id})">📜 お品書き</button>
           <button class="btn-sm danger" onclick="deleteRecord(${r.id})">削除</button>
         </div>`;
       grp.appendChild(item);
@@ -1276,7 +1277,142 @@ function renderHistory(){
   });
 }
 
-// 既存の献立をコピーして新規保存
+// ═══════════════════════════════════
+// ═══════════════════════════════════
+// お品書き生成
+// A4縦1枚・上下2席分・縦書き・和風
+// ═══════════════════════════════════
+function printOshinagaki(id){
+  const r = loadStore().find(x => x.id === id);
+  if(!r) return;
+
+  const d = new Date(r.date + 'T00:00:00');
+  const weekChars = ['日','月','火','水','木','金','土'];
+  const dateJP = `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${weekChars[d.getDay()]}）`;
+
+  // 料理リスト（前菜は1点ずつ・肉料理は各選択肢・通常皿）
+  const items = [];
+  r.dishes.forEach(dish => {
+    const isApp  = dish.isApp  || dish.key==='app'  || dish.name==='オードブル盛り合わせ';
+    const isMeat = dish.isMeat || dish.key==='meat' || dish.name==='肉料理セレクト';
+    if(isApp && dish.items){
+      dish.items.forEach(it=>{ if(it.name) items.push({name:it.name, ing:it.ingredient||''}); });
+    } else if(isMeat && dish.items){
+      dish.items.forEach(it=>{ if(it.name) items.push({name:it.name, ing:it.ingredient||''}); });
+    } else {
+      if(dish.name) items.push({name:dish.name, ing:dish.ingredient||''});
+    }
+  });
+
+  if(items.length === 0){
+    alert('料理名が入力されていません。献立を編集してから再度お試しください。');
+    return;
+  }
+
+  const n = items.length;
+  const namePt = n <= 5 ? 14 : n <= 8 ? 12 : n <= 11 ? 10 : 9;
+  const ingPt  = n <= 5 ? 7.5 : 7;
+  const padPx  = n <= 6 ? 14 : n <= 10 ? 10 : 7;
+
+  function makeBlock(height){
+    const cols = items.map((item, i) => `
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;
+        padding:0 ${padPx}px;overflow:hidden;
+        ${i > 0 ? 'border-left:0.8px solid rgba(80,40,10,0.18);' : ''}">
+        <div style="font-family:'Shippori Mincho B1',serif;font-size:${namePt}pt;font-weight:700;
+          color:#1a1008;letter-spacing:.18em;writing-mode:vertical-rl;text-orientation:mixed;
+          flex:1;line-height:1.9;padding-top:2mm;">${item.name}</div>
+        ${item.ing ? `
+        <div style="font-family:'Shippori Mincho B1',serif;font-size:${ingPt}pt;color:#6b4c2a;
+          letter-spacing:.1em;writing-mode:vertical-rl;text-orientation:mixed;
+          margin-top:5px;padding-top:5px;border-top:0.8px solid rgba(80,40,10,0.2);
+          line-height:1.7;max-height:${height*0.38}mm;overflow:hidden;">${item.ing}</div>` : ''}
+      </div>`).join('');
+
+    return `
+    <div style="position:relative;width:210mm;height:${height}mm;overflow:hidden;
+      background:linear-gradient(160deg,#fdf9f0 0%,#f6edd8 60%,#fdf9f0 100%);">
+      <div style="position:absolute;inset:0;pointer-events:none;
+        background-image:
+          repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(139,101,60,0.025) 3px,rgba(139,101,60,0.025) 4px),
+          repeating-linear-gradient(90deg,transparent,transparent 3px,rgba(139,101,60,0.025) 3px,rgba(139,101,60,0.025) 4px);"></div>
+      <div style="position:absolute;top:5mm;left:5mm;right:5mm;bottom:5mm;
+        border:1.8px solid rgba(80,40,10,0.55);pointer-events:none;"></div>
+      <div style="position:absolute;top:6.5mm;left:6.5mm;right:6.5mm;bottom:6.5mm;
+        border:0.8px solid rgba(80,40,10,0.28);pointer-events:none;"></div>
+      <!-- 右帯：お品書き -->
+      <div style="position:absolute;top:7mm;right:7mm;bottom:7mm;width:22mm;
+        display:flex;flex-direction:column;align-items:center;justify-content:center;
+        border-left:0.8px solid rgba(80,40,10,0.3);">
+        <div style="writing-mode:vertical-rl;font-size:17pt;font-weight:800;color:#3a2010;
+          letter-spacing:.35em;margin-bottom:10px;">お品書き</div>
+        ${r.customer ? `
+        <div style="writing-mode:vertical-rl;font-size:7pt;color:#8b6540;
+          letter-spacing:.15em;margin-top:8px;padding-top:6px;
+          border-top:0.8px solid rgba(80,40,10,0.2);">${r.customer}　様</div>` : ''}
+      </div>
+      <!-- 左帯：店名・日付 -->
+      <div style="position:absolute;top:7mm;left:7mm;bottom:7mm;width:22mm;
+        display:flex;flex-direction:column;align-items:center;justify-content:center;
+        border-right:0.8px solid rgba(80,40,10,0.3);">
+        <div style="writing-mode:vertical-rl;font-size:7pt;color:#8b6540;
+          letter-spacing:.2em;margin-bottom:6px;">洋食だいにんぐ</div>
+        <div style="writing-mode:vertical-rl;font-size:12pt;font-weight:800;color:#3a2010;
+          letter-spacing:.25em;margin-bottom:10px;">なかむら</div>
+        <div style="writing-mode:vertical-rl;font-size:6.5pt;color:#8b6540;
+          letter-spacing:.12em;">${dateJP}</div>
+      </div>
+      <!-- 中央：料理カラム（右から左） -->
+      <div style="position:absolute;top:8mm;left:31mm;right:31mm;bottom:9mm;
+        display:flex;flex-direction:row-reverse;align-items:stretch;overflow:hidden;">
+        ${cols}
+      </div>
+      <!-- 下部一言 -->
+      <div style="position:absolute;bottom:6mm;left:50%;transform:translateX(-50%);
+        font-size:6pt;color:rgba(80,40,10,0.4);letter-spacing:.18em;white-space:nowrap;">
+        旬の食材を丁寧に　ごゆるりとお召し上がりください
+      </div>
+    </div>`;
+  }
+
+  const html = `<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@400;600;700;800&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  @page{size:A4 portrait;margin:0}
+  html,body{width:210mm;height:297mm;overflow:hidden;font-family:'Shippori Mincho B1',serif;}
+</style>
+</head><body>
+  ${makeBlock(148)}
+  <div style="width:210mm;height:1px;
+    background:repeating-linear-gradient(to right,rgba(80,40,10,0.3) 0,rgba(80,40,10,0.3) 5px,transparent 5px,transparent 10px);
+    position:relative;">
+    <span style="position:absolute;left:50%;transform:translateX(-50%);
+      font-size:6pt;color:rgba(80,40,10,0.4);letter-spacing:.15em;top:-7px;
+      background:#fff;padding:0 4px;">✂ 切り取り</span>
+  </div>
+  ${makeBlock(148)}
+<script>window.onload=function(){window.print()}<\/script>
+</body></html>`;
+
+  const oldF = document.getElementById('_oshinagaki_frame');
+  if(oldF) oldF.remove();
+  const iframe = document.createElement('iframe');
+  iframe.id = '_oshinagaki_frame';
+  iframe.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:9999;opacity:0;pointer-events:none';
+  document.body.appendChild(iframe);
+  iframe.onload = function(){
+    setTimeout(()=>{
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+      setTimeout(()=>iframe.remove(), 2500);
+    }, 700);
+  };
+  const blob = new Blob([html], {type:'text/html;charset=utf-8'});
+  iframe.src = URL.createObjectURL(blob);
+}
+
 function copyRecord(id){
   const orig = loadStore().find(r => r.id === id);
   if(!orig) return;
