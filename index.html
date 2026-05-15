@@ -283,6 +283,16 @@ async function saveAll(){
   await saveRecipes();
 }
 
+// IDをキーにして2つの配列をマージ（後者優先）
+function mergeById(local, remote){
+  const map = new Map();
+  // ローカルを先に入れる
+  (local||[]).forEach(item => map.set(String(item.id), item));
+  // リモートで上書き（リモート優先）
+  (remote||[]).forEach(item => map.set(String(item.id), item));
+  return Array.from(map.values());
+}
+
 async function syncNow(){
   if(!GAS_URL){ openGasSettings(); return; }
   showToast('🔄 同期中...');
@@ -291,39 +301,44 @@ async function syncNow(){
     if(!res.ok) throw new Error('HTTP '+res.status);
     const json = await res.json();
     const s = load();
-
-    const gasIngs = json.ok && json.data && json.data.ingredients && json.data.ingredients.length > 0
-      ? json.data.ingredients : null;
-    const gasRecs = json.ok && json.data && json.data.recipes && json.data.recipes.length > 0
-      ? json.data.recipes : null;
-
     let msg = [];
 
-    // 食材：GASにデータあり→取得、なし→ローカルをGASに送る
-    if(gasIngs){
-      s.ingredients = gasIngs;
-      msg.push('食材 '+gasIngs.length+'品目');
+    const gasIngs = json.ok && json.data && json.data.ingredients ? json.data.ingredients : [];
+    const gasRecs = json.ok && json.data && json.data.recipes    ? json.data.recipes    : [];
+
+    if(gasIngs.length > 0){
+      // GASとローカルをマージ（GAS優先）→ 追加した食材も残る
+      const merged = mergeById(s.ingredients, gasIngs);
+      s.ingredients = merged;
+      msg.push('食材 '+merged.length+'品目');
+      // マージ結果をGASに書き戻す
+      fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},
+        body:JSON.stringify({action:'save_ingredients',data:{ingredients:merged}})});
     } else if(s.ingredients.length > 0){
+      // GASが空 → ローカルをそのままGASに送る
       fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},
         body:JSON.stringify({action:'save_ingredients',data:{ingredients:s.ingredients}})});
       msg.push('食材をGASに登録');
     }
 
-    // レシピ：GASにデータあり→取得、なし→ローカルをGASに送る（絶対に消さない）
-    if(gasRecs){
-      s.recipes = gasRecs;
-      msg.push('レシピ '+gasRecs.length+'件');
+    if(gasRecs.length > 0){
+      // GASとローカルをマージ（GAS優先）
+      const merged = mergeById(s.recipes, gasRecs);
+      s.recipes = merged;
+      msg.push('レシピ '+merged.length+'件');
+      // マージ結果をGASに書き戻す
+      fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},
+        body:JSON.stringify({action:'save_recipes',data:{recipes:merged}})});
     } else if(s.recipes && s.recipes.length > 0){
       fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},
         body:JSON.stringify({action:'save_recipes',data:{recipes:s.recipes}})});
       msg.push('レシピをGASに登録');
     }
-    // レシピが両方空でも何もしない（消さない）
 
     _store = s;
     localStorage.setItem('cafe_teru_v2', JSON.stringify(s));
     renderIngs(); renderRecipes();
-    showToast('✅ '+msg.join(' / '));
+    showToast('✅ '+( msg.length ? msg.join(' / ') : '同期完了'));
 
   }catch(e){ showToast('⚠️ 同期失敗: '+e.message); }
 }
