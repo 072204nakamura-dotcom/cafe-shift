@@ -153,7 +153,10 @@ body{background:var(--bg);font-family:"Zen Kaku Gothic New",sans-serif;color:var
     <span class="top-shop">Café照</span>
     <div class="top-title">レシピ管理システム</div>
   </div>
-  <button class="cloud-btn" onclick="openGasSettings()">☁️ クラウド設定</button>
+  <div style="display:flex;gap:6px;flex-direction:column;align-items:flex-end">
+    <button class="cloud-btn" onclick="openGasSettings()">☁️ クラウド設定</button>
+    <button class="cloud-btn" onclick="openApiKeySettings()" style="background:rgba(255,255,255,.12)">🔑 APIキー</button>
+  </div>
 </div>
 
 <div class="tab-bar">
@@ -373,6 +376,32 @@ function openGasSettings(){
   localStorage.setItem('cafe_teru_gas', GAS_URL);
   if(GAS_URL) showToast('✅ 設定しました。保存ボタンでGASに送ってください');
   else showToast('クリアしました');
+}
+
+function openApiKeySettings(){
+  const cur = localStorage.getItem('cafe_teru_apikey') || '';
+  const masked = cur ? cur.slice(0,14)+'...'+cur.slice(-4) : '（未設定）';
+  const key = prompt(
+    'Anthropic APIキーを貼り付けてください\n' +
+    'sk-ant-api03-... で始まる文字列です\n\n' +
+    '※このキーはこの端末のブラウザだけに保存され、\n' +
+    '　GitHubやスタッフには共有されません。\n\n' +
+    '現在の設定：' + masked + '\n\n' +
+    '（空欄でクリア）',
+    cur
+  );
+  if(key===null) return;
+  const k = key.trim();
+  localStorage.setItem('cafe_teru_apikey', k);
+  if(k){
+    if(k.startsWith('sk-ant-')){
+      showToast('✅ APIキーを設定しました。納品書の自動読み取りが使えます');
+    } else {
+      showToast('⚠️ キーの形式が違うようです（sk-ant-... で始まります）');
+    }
+  } else {
+    showToast('APIキーをクリアしました');
+  }
 }
 
 function restoreDefaults(){
@@ -976,13 +1005,25 @@ function processInvFile(file){
 }
 async function analyzeInvoice(){
   if(!invState.b64) return;
+  const apiKey = localStorage.getItem('cafe_teru_apikey') || '';
+  if(!apiKey){
+    const err=document.getElementById('inv-err');
+    err.textContent='⚠️ APIキーが未設定です。右上「☁️ クラウド設定」の隣の「🔑 APIキー」ボタンから設定してください。';
+    err.style.display='';
+    return;
+  }
   const btn=document.getElementById('inv-btn'); btn.disabled=true; btn.style.opacity='.5';
   document.getElementById('inv-loading').style.display='';
   document.getElementById('inv-result-wrap').style.display='none';
   document.getElementById('inv-err').style.display='none';
   try{
     const res=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',headers:{'Content-Type':'application/json'},
+      method:'POST',headers:{
+        'Content-Type':'application/json',
+        'x-api-key':apiKey,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true'
+      },
       body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:3000,
         messages:[{role:'user',content:[
           {type:'image',source:{type:'base64',media_type:invState.mime,data:invState.b64.split(',')[1]}},
