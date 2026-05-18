@@ -821,7 +821,7 @@ function renderWeekly(){
       } else if(!isAvail(s,key)){
         h2+=`<td><span style="color:var(--red);font-size:.8rem">✕</span></td>`;
       } else {
-        h2+=`<td><span style="color:var(--border);font-size:.8rem">—</span></td>`;
+h2+=`<td></td>`;
       }
     });
     h2+='</tr>';
@@ -940,8 +940,8 @@ function renderHistory(){
       const isH=JP_HOL.has(key);
       const wkend=dow===0||dow===6||isH;
       h += dSet.has(d)
-        ? `<td style="text-align:center;background:rgba(192,48,48,.1);color:var(--red);font-weight:700">✕</td>`
-        : `<td style="text-align:center;background:${wkend?'rgba(0,0,0,.03)':''}"></td>`;
+        ? `<td style="text-align:center;background:rgba(200,48,48,.18);color:#c03030;font-weight:700;font-size:10pt"><b>✕</b></td>`
+        : `<td style="text-align:center;background:${wkend?'rgba(0,0,0,.02)':''}"></td>`;
     }
     h += '</tr>';
   });
@@ -1320,11 +1320,11 @@ function buildHalfTable(y, m, fromDay, toDay){
         bg=ro?ro.color+'55':'rgba(58,138,90,.3)';
         cell=`<b style="color:${ro?ro.color:'#3a8a5a'};font-size:10pt">${asgn.role}</b>`;
       } else if(!avail){
-        bg='rgba(192,48,48,.1)';
-        cell='<span style="color:#c03030;font-size:10pt">✕</span>';
+        bg='rgba(200,48,48,.18)';
+        cell='<b style="color:#c03030;font-size:11pt">✕</b>';
       } else {
-        bg=wkend?'rgba(0,0,0,.03)':'';
-        cell='<span style="color:#ccc;font-size:10pt">✕</span>';
+        bg='';
+        cell='';
       }
       h+=`<td style="background:${bg};text-align:center;padding:2px">${cell}</td>`;
     }
@@ -1561,10 +1561,10 @@ function renderMonthlyMatrix(y,m,daysIn){
       } else if(!avail){
         // 欠勤希望
         bg='rgba(192,48,48,.08)';
-        cell=`<span style="color:var(--red);font-size:.75rem;font-weight:700">✕</span>`;
+        cell=`<b style="color:var(--red);font-size:.82rem">✕</b>`;
       } else {
-        // 出勤可能だが未アサイン → ✕（薄め）
-        bg=wkend?'rgba(0,0,0,.03)':'';
+        // 未アサイン → 空白
+        bg=wkend?'rgba(0,0,0,.02)':'';
         cell='';
       }
       h+=`<td style="text-align:center;padding:3px 2px;border:1px solid var(--border);background:${bg}">${cell}</td>`;
@@ -1596,7 +1596,7 @@ function renderMonthlyMatrix(y,m,daysIn){
   h+=`<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;font-size:.65rem;color:var(--muted)">`;
   ROLES.forEach(r=>h+=`<span><span style="display:inline-block;width:16px;height:16px;border-radius:3px;background:${r.color}33;color:${r.color};font-family:'DM Mono',monospace;font-weight:700;text-align:center;line-height:16px;font-size:.6rem">${r.id}</span> ${r.name}</span>`);
   h+=`<span><span style="color:var(--red);font-weight:700">✕</span> 欠勤希望</span>`;
-  h+=`<span><span style="color:#ccc;font-weight:700">✕</span> 未アサイン（出勤可）</span>`;
+  h+=`<span>□ 未アサイン（出勤可）</span>`;
   h+=`</div>`;
 
   document.getElementById('monthlyBody').innerHTML=h;
