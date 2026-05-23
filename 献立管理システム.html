@@ -1296,8 +1296,10 @@ function printOshinagaki(id){
     const isApp  = dish.isApp  || dish.key==='app'  || dish.name==='オードブル盛り合わせ';
     const isMeat = dish.isMeat || dish.key==='meat' || dish.name==='肉料理セレクト';
     if(isApp && dish.items){
+      // 前菜は1点ずつ個別に表示
       dish.items.forEach(it=>{ if(it.name) items.push({name:it.name, ing:it.ingredient||''}); });
     } else if(isMeat && dish.items){
+      // 肉料理セレクト → 4択を全部個別に表示
       dish.items.forEach(it=>{ if(it.name) items.push({name:it.name, ing:it.ingredient||''}); });
     } else {
       if(dish.name) items.push({name:dish.name, ing:dish.ingredient||''});
@@ -1310,9 +1312,21 @@ function printOshinagaki(id){
   }
 
   const n = items.length;
-  const namePt = n <= 5 ? 14 : n <= 8 ? 12 : n <= 11 ? 10 : 9;
-  const ingPt  = n <= 5 ? 7.5 : 7;
-  const padPx  = n <= 6 ? 14 : n <= 10 ? 10 : 7;
+  const namePt = n <= 4  ? 15
+               : n <= 6  ? 13
+               : n <= 9  ? 11
+               : n <= 12 ? 9
+               : n <= 16 ? 8
+               : 7;
+  const ingPt  = n <= 6  ? 7.5
+               : n <= 12 ? 6.5
+               : 6;
+  const padPx  = n <= 4  ? 18
+               : n <= 6  ? 14
+               : n <= 9  ? 10
+               : n <= 12 ? 7
+               : n <= 16 ? 5
+               : 3;
 
   function makeBlock(height){
     const cols = items.map((item, i) => `
