@@ -1887,41 +1887,35 @@ function printRecord(id){
 
 // 印刷（iframe方式・iPhone Safari対応）
 function openPrintWindow(r){
-  const sheetHtml = buildPrintHTML(r);
+  // buildPrintHTMLからposition:fixedとz-indexを除去
+  let sheetHtml = buildPrintHTML(r);
+  sheetHtml = sheetHtml.replace('position:fixed;top:0;left:0;', 'position:relative;');
+  sheetHtml = sheetHtml.replace(';z-index:9999;', ';');
 
-  // 完全なHTMLドキュメント（buildPrintHTMLが返すdivをそのまま body 内に配置）
   const fullHtml = `<!DOCTYPE html>
 <html lang="ja"><head><meta charset="UTF-8">
-<meta name="viewport" content="width=210mm">
+<meta name="viewport" content="width=210mm,initial-scale=1">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@400;600;700;800&display=swap');
   *{margin:0;padding:0;box-sizing:border-box}
   @page{size:A4 portrait;margin:0}
   html,body{
     width:210mm;
-    min-height:297mm;
+    height:297mm;
+    margin:0;
+    padding:0;
     background:#f9f6f0;
     font-family:'Shippori Mincho B1',serif;
-  }
-  /* buildPrintHTML が返す div の position:fixed を打ち消す */
-  body > div {
-    position:relative !important;
-    top:auto !important;
-    left:auto !important;
-    z-index:auto !important;
-    width:210mm !important;
-    height:297mm !important;
+    overflow:hidden;
   }
 </style>
 </head><body>
 ${sheetHtml}
-<script>window.onload=function(){setTimeout(function(){window.print()},500)}<\/script>
+<script>window.onload=function(){setTimeout(function(){window.print()},600)}<\/script>
 </body></html>`;
 
-  // 既存のiframeを削除
   const oldF = document.getElementById('_print_iframe');
   if(oldF) oldF.remove();
-  // iframeで印刷
   const iframe = document.createElement('iframe');
   iframe.id = '_print_iframe';
   iframe.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:9999;opacity:0;pointer-events:none';
